@@ -1,0 +1,12 @@
+# Generated output, dependencies, private fixtures and evidence.
+node_modules/
+dist/
+artifacts/
+.publication-*/
+playwright-report/
+test-results/
+private-data/
+exports/
+backups/
+# Formatting scripts explicitly select authored TypeScript and tooling config.
+# Do not expand them to service-worker/landing JavaScript, locale JSON or assets.

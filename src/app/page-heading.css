@@ -1,0 +1,57 @@
+/* Shared primary-page hierarchy, referenced to the approved Pillars title. */
+:root {
+  --page-title-family: Georgia, serif;
+  --page-title-size: 2rem;
+  --page-title-weight: 700;
+  --page-title-line-height: 1.2;
+  --page-title-color: #152e24;
+  --page-heading-space-above: 0px;
+  --page-heading-intro-gap: 6px;
+  --page-heading-content-gap: 16px;
+  --page-intro-size: 1rem;
+  --page-intro-weight: 400;
+  --page-intro-line-height: 1.5;
+  --page-intro-color: #58675d;
+}
+main > .main-page-header {
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  margin-block: var(--page-heading-space-above) var(--page-heading-content-gap);
+}
+.main-page-header .page-title {
+  margin: 0;
+  min-width: 0;
+  max-width: 100%;
+  font-family: var(--page-title-family);
+  font-size: var(--page-title-size);
+  font-weight: var(--page-title-weight);
+  line-height: var(--page-title-line-height);
+  color: var(--page-title-color);
+  overflow-wrap: anywhere;
+}
+.main-page-header .page-intro {
+  margin: var(--page-heading-intro-gap) 0 0;
+  font-size: var(--page-intro-size);
+  font-weight: var(--page-intro-weight);
+  line-height: var(--page-intro-line-height);
+  color: var(--page-intro-color);
+}
+/* Title/date stay together where possible; XP can wrap, always flush right. */
+.main-page-header .today-header-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+}
+.main-page-header .today-title-date { flex: 1 1 14rem; }
+.main-page-header .header-xp { margin-inline-start: auto; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.pillars-management-page > .management-toolbar { margin: 0 0 12px; }
+/* Only shared, negative-tabindex route-announcement targets. Native initial
+   programmatic focus can be :focus-visible even without keyboard input. */
+main h1[data-route-heading][tabindex="-1"]:focus { outline: none; }
+main h1[data-route-heading][data-keyboard-focus][tabindex="-1"]:focus {
+  outline: 3px solid #77502f;
+  outline-offset: 3px;
+}

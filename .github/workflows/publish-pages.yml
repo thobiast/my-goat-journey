@@ -1,0 +1,116 @@
+name: Publish GitHub Pages (manual)
+
+on:
+  workflow_dispatch:
+
+# No token authority unless granted by a specific job below.
+permissions: {}
+
+# Serialize the complete publication; never cancel an active deployment.
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.repository == 'thobiast/my-goat-journey' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pages: read
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Configure the already enabled Pages site
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5; verified upstream commit
+        with:
+          enablement: false
+
+      - name: Check out the event revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6; verified upstream commit
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+          submodules: false
+          lfs: false
+
+      - name: Read Node version from the development image
+        id: node-version
+        # Reuse the exact version in the digest-pinned development stage.
+        # Fail closed if its format changes rather than silently choosing latest.
+        run: |
+          set -euo pipefail
+          read -r development_stage < Containerfile
+          if [[ "$development_stage" =~ ^FROM\ docker.io/library/node:([0-9]+\.[0-9]+\.[0-9]+)-bookworm-slim@sha256:[0-9a-f]{64}\ AS\ development$ ]]; then
+            printf 'version=%s\n' "${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          else
+            echo 'Expected an exact Node version in the pinned development stage of Containerfile.' >&2
+            exit 1
+          fi
+
+      - name: Set up the project Node version
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6; verified upstream commit
+        with:
+          node-version: ${{ steps.node-version.outputs.version }}
+          check-latest: false
+          package-manager-cache: false
+
+      - name: Install from the committed lockfile
+        run: |
+          set -euo pipefail
+          test -f package-lock.json
+          sha256sum package-lock.json > "$RUNNER_TEMP/my-goat-package-lock.sha256"
+          npm ci
+          sha256sum --check "$RUNNER_TEMP/my-goat-package-lock.sha256"
+
+      - name: Type check and test
+        run: |
+          set -euo pipefail
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm run test
+
+      - name: Build the shared production artifact
+        # The shared npm build owns assembly and reads the committed shared
+        # prefix configuration. CI deliberately supplies no separate default.
+        run: |
+          set -euo pipefail
+          npm run build
+          sha256sum --check "$RUNNER_TEMP/my-goat-package-lock.sha256"
+          test -f dist/index.html
+          test -f dist/app/index.html
+          test -f dist/app/sw.js
+          cmp LICENSE dist/app/LICENSE
+          cmp public/third-party-notices.txt dist/app/third-party-notices.txt
+
+      - name: Upload the validated Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0; verified upstream commit
+        with:
+          name: github-pages
+          path: dist/
+          retention-days: 1
+          include-hidden-files: false
+
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.repository == 'thobiast/my-goat-journey' && github.ref == 'refs/heads/main' }}
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy the validated Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4; verified upstream commit
+        with:
+          artifact_name: github-pages
+          preview: false

@@ -1,0 +1,44 @@
+.today-page .today-progress {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid var(--field-border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--field-shadow);
+}
+.today-progress-copy { flex: 1; min-width: 0; }
+.today-page .today-progress h2 { margin: 0; color: var(--field-text); font-size: .9375rem; line-height: 1.5; font-weight: 650; }
+.today-page .today-header .today-count { margin: 4px 0 0; color: var(--muted); font-size: .875rem; line-height: 1.5; }
+.today-progress-circle { display: grid; place-items: center; flex: none; width: 3.5em; height: 3.5em; position: relative; color: var(--primary); }
+.today-progress-circle svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.today-progress-circle circle { fill: none; stroke-width: 3; }
+.today-progress-circle .circle-track { stroke: var(--field-border); }
+.today-progress-circle .circle-value { stroke: currentColor; transform: rotate(-90deg); transform-origin: center; }
+.today-progress-circle > span { font-size: .75em; font-weight: 650; }
+.today-page .today-complete { background: var(--field-complete); }
+.today-complete-icon { display: inline-flex; flex: none; color: var(--field-medal); }
+.today-complete-icon svg { display: block; }
+.today-page .today-complete-message { margin: 0; color: var(--field-text); font-size: 1rem; font-weight: 650; line-height: 1.5; }
+/* Decorative, action-scoped and out of flow; it never intercepts a checkbox. */
+.today-page .today-xp-feedback {
+  position: absolute;
+  bottom: calc(100% - 4px);
+  right: 0;
+  width: max-content;
+  pointer-events: none;
+  color: var(--primary);
+  font-size: .75rem;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+  animation: today-xp-rise 700ms ease-out both;
+}
+@keyframes today-xp-rise {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-8px); }
+}
+@media (prefers-reduced-motion: reduce) { .today-page .today-xp-feedback { animation: none; } }
+html[data-reduced-motion=true] .today-page .today-xp-feedback { animation: none; }

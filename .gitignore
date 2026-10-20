@@ -1,0 +1,59 @@
+# Dependencies, generated builds and local execution evidence
+node_modules/
+dist/
+artifacts/
+# Transient assembly and container coordination, never public source.
+/.publication-*/
+/.container-toolchain.lock
+.env
+.env.*
+*.log
+
+# Private diary exports: use these root directories for renamed downloads.
+# JSON fixtures and localization files elsewhere remain visible to Git.
+/private-data/
+/exports/
+/backups/
+/my-goat-journey-backup*.json
+
+# Raw browser state and test evidence, never public screenshots.
+/browser-profile*/
+/playwright-profile*/
+/user-data*/
+/profiles/
+/traces/
+/evidence/
+/trace.zip
+/trace-*.zip
+/playwright-report/
+/test-results/
+/playwright/.auth/
+
+# Local SQLite stores and journals (including browser evidence).
+# Root diary/database files are private; nested reviewed fixtures stay visible.
+/*.db
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite3-journal
+*.db-wal
+*.db-shm
+*.db-journal
+
+# Temporary/editor/backup files, not reviewed PNGs or source fixtures.
+/tmp/
+/temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Ignore rules do not untrack existing files or erase Git history.

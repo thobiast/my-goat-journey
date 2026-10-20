@@ -1,0 +1,42 @@
+/* Scoped Field Notes setup: shared title tokens, existing controls and pillar art. */
+main.setup { max-width: 640px; padding-bottom: max(32px, env(safe-area-inset-bottom)); }
+.setup .onboarding-logo { display: block; width: 128px; height: auto; max-width: 40%; margin: 0 0 16px; }
+.setup .onboarding-brand { margin: 0 0 8px; color: var(--page-intro-color); font-size: .875rem; font-weight: 600; letter-spacing: .02em; }
+.setup .onboarding-pillar-list { margin: 0 0 20px; color: var(--page-intro-color); }
+.setup .onboarding-welcome-actions { display: grid; gap: 12px; }
+.setup .onboarding-welcome-actions label { margin: 0; }
+.setup .onboarding-welcome-actions button { justify-self: start; margin-top: 4px; }
+.setup .onboarding-navigation { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.setup .onboarding-navigation p { margin: 0; color: var(--page-intro-color); font-size: .875rem; }
+.setup .onboarding-back { background: transparent; color: var(--primary); border-color: transparent; padding: 8px 0; }
+.setup .onboarding-progress { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); list-style: none; gap: 6px; padding: 0; margin: 0 0 20px; }
+.setup .onboarding-progress li { height: 4px; border-radius: 2px; background: #d5dfce; }
+.setup .onboarding-progress li[data-passed=true] { background: #7b9d88; }
+.setup .onboarding-progress li[aria-current=step] { background: var(--primary); }
+.setup .onboarding-pillar-title { display: flex; align-items: center; gap: 10px; }
+.setup .onboarding-pillar-icon { display: inline-flex; align-items: center; color: var(--custom-accent); flex-shrink: 0; }
+.setup .onboarding-pillar-icon.mind { color: var(--mind-accent); }
+.setup .onboarding-pillar-icon.body { color: var(--body-accent); }
+.setup .onboarding-pillar-icon.nutrition { color: var(--nutrition-accent); }
+.setup .onboarding-pillar-icon.hygiene { color: var(--hygiene-accent); }
+.setup .onboarding-form { margin-top: 0; }
+.setup .onboarding-form #goal-help { color: var(--page-intro-color); font-size: .875rem; }
+.setup .field-error { color: #742c38; margin: 8px 0; }
+.setup .onboarding-status { color: var(--page-intro-color); font-size: .875rem; margin: 8px 0 0; }
+.setup .onboarding-status:empty { margin: 0; }
+.setup .onboarding-review-row { margin: 0 0 10px; padding: 12px 14px; border-radius: 10px; }
+.setup .onboarding-review-top { display: flex; align-items: flex-start; gap: 8px; justify-content: space-between; }
+.setup .onboarding-review-top h2 { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 8px 0 0; font-size: 1rem; }
+.setup .onboarding-review-edit { background: transparent; color: var(--primary); border-color: transparent; padding: 8px 0 8px 8px; flex-shrink: 0; max-width: 45%; }
+.setup .onboarding-review-goal { margin: 4px 0; color: var(--goal-title); font-size: 1.125rem; font-weight: 600; }
+.setup .onboarding-review-frequency, .setup .onboarding-review-empty { margin: 4px 0; color: var(--page-intro-color); font-size: .875rem; }
+.setup .onboarding-first-day { margin: 16px 0; color: var(--page-intro-color); font-size: .875rem; }
+.setup .onboarding-finalize { margin-top: 4px; }
+.setup .onboarding-review { container: onboarding-review / inline-size; }
+.setup .onboarding-pillar-name, .setup .onboarding-review-edit { overflow-wrap: normal; }
+/* At enlarged/narrow widths, keep entire words and the quiet action at upper right. */
+@container onboarding-review (max-width: 18em) {
+  .setup .onboarding-review-top { flex-wrap: wrap; }
+  .setup .onboarding-review-top h2 { flex-basis: 100%; margin-top: 0; }
+  .setup .onboarding-review-edit { order: -1; margin-left: auto; max-width: 100%; padding-inline: 0; }
+}

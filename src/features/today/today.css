@@ -1,0 +1,104 @@
+/* Field Notes palette is scoped to Today; other destinations retain their tokens. */
+body:has(.today-page) { background: var(--field-page); }
+.today-page {
+  --surface: var(--field-card);
+  --primary: var(--field-action);
+  --muted: var(--field-secondary);
+  --text-primary: var(--field-text);
+  --page-title-color: var(--field-text);
+  --page-intro-color: var(--field-secondary);
+  --pillar-foreground: var(--field-card);
+  color: var(--field-text);
+}
+.today-page .header-xp {
+  padding: 5px 10px;
+  border: 1px solid var(--field-border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--field-text);
+  font-size: .8125rem;
+}
+.today-page .header-xp-value { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; vertical-align: middle; }
+.today-page .header-xp-value > svg { flex-shrink: 0; }
+.today-page .header-xp-value > span { min-width: 0; }
+.today-page .summary-shell { margin-bottom: 24px; }
+.today-page .pillar-summary { gap: 10px; }
+.today-page .summary-tile {
+  padding: 10px;
+  border-color: var(--field-border);
+  border-radius: 14px;
+  box-shadow: var(--field-shadow);
+}
+.today-page .summary-top-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.today-page .summary-title { flex: 1 1 auto; max-width: 100%; }
+.today-page .summary-wide { grid-column: 1 / -1; }
+.today-page .today-header .today-title-date { flex-basis: 11rem; }
+.today-page .summary-title h2 { font-size: .9375rem; line-height: 1.4; font-weight: 650; }
+.today-page .summary-title .pillar-title { gap: 6px; align-items: center; }
+.today-page .summary-count { font-size: .75rem; padding-top: 0; margin-inline-start: auto; }
+.today-page .summary-copy { padding-top: 8px; color: var(--muted); }
+.today-page .summary-copy p, .today-page .pillar-day-status { font-size: .75rem; line-height: 1.5; }
+.today-page .summary-copy p { margin: 0 0 6px; }
+.today-page .summary-copy p:last-child { margin-bottom: 0; }
+.today-page .pillar-day-status { color: var(--primary); margin: 0; }
+.today-page .mind { --pillar-accent: var(--mind-accent); }
+.today-page .body { --pillar-accent: var(--body-accent); }
+.today-page .nutrition { --pillar-accent: var(--nutrition-accent); }
+.today-page .hygiene { --pillar-accent: var(--hygiene-accent); }
+.today-page .custom { --pillar-accent: var(--custom-accent); }
+.today-page .today-pillar {
+  border-color: var(--field-border);
+  border-radius: 16px;
+  box-shadow: var(--field-shadow);
+}
+.today-page .today-pillar .pillar-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 8px 12px;
+  background: var(--pillar-accent);
+  color: var(--pillar-foreground);
+  border: 0;
+}
+.today-page .today-pillar .pillar-title { flex: 1 1 auto; min-width: 0; max-width: 100%; gap: 8px; }
+/* A light translucent surface keeps contrast on the actual solid pillar header. */
+.today-page .today-pillar .pillar-icon { background: rgb(255 255 255 / 16%); color: inherit; }
+.today-page .today-pillar .pillar-header h2 { font-size: 1rem; color: inherit; line-height: 1.4; }
+.today-page .today-pillar .today-pillar-status {
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 0 0 auto;
+  color: inherit;
+  font-size: .75rem;
+  line-height: 1.5;
+  text-align: right;
+}
+.today-page .today-pillar-status span { min-width: 0; }
+.today-page .today-goal { padding: 16px; container-type: normal; }
+.today-page .today-goal + .today-goal { border-color: var(--field-border); }
+.today-page .today-goal { background: var(--surface); }
+.today-page .today-goal .goal-row { grid-template-columns: minmax(0, 1fr) 44px; align-items: start; gap: 12px; }
+.today-page .today-goal h3 { margin: 0; color: var(--field-text); font-size: 1rem; font-weight: 600; line-height: 1.5; }
+.today-page .habit-check { position: relative; width: 44px; height: 44px; padding: 10px; margin-top: -4px; margin-bottom: -12px; }
+.today-page .habit-check > span:not(.today-xp-feedback) {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
+}
+.today-page .habit-check input { width: 22px; height: 22px; }
+/* Keep the 44px target beside the first streak line without inflating the title row. */
+.today-page .habit-metrics { font-size: .8125rem; margin-top: 2px; }
+.today-page .habit-metrics p { margin: 0 0 3px; }
+.today-page .habit-streak-line, .today-page .habit-today-status { padding-inline-end: 56px; }
+.today-page .habit-metrics strong { font-weight: 600; }
+.today-page .next-bonus-message { max-width: 45em; }
+.today-page .habit-today-status { font-size: .8125rem; }
+.today-page .today-help { font-size: .8125rem; }
+.today-page .bottom-nav { background: var(--surface); border-color: var(--field-border); }
+/* At enlarged text, prefer a single summary column, never a stacked checkbox. */
+@container (max-width: 18em) { .today-page .pillar-summary { grid-template-columns: minmax(0, 1fr); } }
+/* Normal 320px mobile still has enough room for two compact summaries. */
+@container (min-width: 18em) { .today-page .pillar-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

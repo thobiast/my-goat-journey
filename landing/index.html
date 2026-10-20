@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8f6ef">
+  <meta name="description" content="Build habits, choose your days, and follow your progress. A local-first habit tracker with no account required.">
+  <title>My GOAT Journey — a journey of your own</title>
+  <link rel="stylesheet" href="assets/field-notes.css">
+  <script type="module" src="assets/landing.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main" data-i18n="skip">Skip to content</a>
+  <div class="page">
+    <header class="masthead">
+      <a class="wordmark" href="./" aria-label="My GOAT Journey">
+        <img src="assets/My_GOAT_Journey_color_symbol.png" alt="" width="1254" height="1254">
+        <span>My GOAT<br>Journey</span>
+      </a>
+      <nav aria-label="Main navigation" data-label="navigation">
+        <a href="#tour" data-i18n="tourNav">Product tour</a>
+        <a href="#install" data-i18n="installNav">How to install</a>
+        <a href="#privacy" data-i18n="privacyNav">Privacy</a>
+      </nav>
+      <div class="header-actions">
+        <div class="language" role="group" aria-label="Language" data-label="language">
+          <button type="button" data-language="en" aria-label="English" aria-pressed="true">EN</button>
+          <button type="button" data-language="pt-BR" aria-label="Português" aria-pressed="false">PT</button>
+        </div>
+        <a class="button small" href="app/" data-i18n="open">Open the app</a>
+      </div>
+    </header>
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow" data-i18n="eyebrow">At your pace, on your days</p>
+          <h1 id="hero-title"><span data-i18n="headingStart">One step today.</span> <em data-i18n="headingJourney">A journey of your own.</em></h1>
+          <p class="lead" data-i18n="lead">Build habits, track your completions, and follow your progress. Bring clarity to what you want to practice and how far you’ve come.</p>
+          <div class="ideas" aria-labelledby="ideas-title">
+            <p id="ideas-title" class="schedule-copy" data-i18n="schedule">Habits don’t have to be daily. Choose a goal and the days of the week for each habit.</p>
+            <div id="initial-ideas" class="idea-grid"></div>
+            <details id="more-ideas">
+              <summary data-i18n="more">8 more ideas to inspire you</summary>
+              <div id="additional-ideas" class="idea-grid"></div>
+            </details>
+            <p class="fine-print" data-i18n="ideasNote">Just ideas, not a routine you have to follow. Select one to try it in the example.</p>
+          </div>
+          <div class="actions">
+            <a class="button" href="app/"><span data-i18n="start">Get started</span><span aria-hidden="true">↗</span></a>
+            <a class="text-link" href="#tour"><span data-i18n="explore">Explore the screens</span><span aria-hidden="true">↓</span></a>
+          </div>
+          <p class="entry-note" data-i18n="noSignup">No sign-up. No login. Start with one habit.</p>
+        </div>
+        <div class="hero-preview">
+          <div class="preview-caption"><span class="live-dot" aria-hidden="true"></span><span data-i18n="try">A little preview. Try checking a habit.</span></div>
+          <div id="hero-demo" class="app-preview"></div>
+          <div id="journey-strip" class="journey-strip"></div>
+          <p class="demo-note" data-i18n="fiction">Interactive demo · Sample data</p>
+        </div>
+      </section>
+      <aside class="trust-strip" aria-label="At a glance" data-label="trust">
+        <p><span aria-hidden="true">✓</span><span data-i18n="trustAccount">No account required</span></p>
+        <p><span aria-hidden="true">✓</span><span data-i18n="trustDevice">Records stored on this device</span></p>
+        <p><span aria-hidden="true">✓</span><span data-i18n="trustOffline">Offline after initial preparation</span></p>
+      </aside>
+      <section id="tour" class="tour section" aria-labelledby="tour-title">
+        <div class="section-heading">
+          <p class="eyebrow" data-i18n="tourEyebrow">A place for each step</p>
+          <h2 id="tour-title" data-i18n="tourHeading">Clarity for today. Perspective to keep going.</h2>
+        </div>
+        <div id="tour-controls" class="tour-controls" role="group" aria-label="Explore the screens" data-label="explore">
+          <button type="button" data-view="today" aria-pressed="false" data-i18n="today">Today</button>
+          <button type="button" data-view="progress" aria-pressed="true" data-i18n="progress">Progress</button>
+          <button type="button" data-view="journey" aria-pressed="false" data-i18n="journey">Your Journey</button>
+        </div>
+        <div class="tour-layout">
+          <div class="tour-copy">
+            <span class="chapter" id="tour-number" aria-hidden="true">02 / 03</span>
+            <h3 id="tour-subheading">See the days, not just the numbers.</h3>
+            <p id="tour-description">Look back at a monthly calendar, your completion percentage, and current and best streaks. Select a day to see its status. Before-tracking days don’t count against you.</p>
+            <p class="tour-footnote" data-i18n="tourNote">Your goals. Your weekdays. No perfect routine required.</p>
+            <a class="text-link" href="app/"><span data-i18n="own">Start your own journey</span><span aria-hidden="true">↗</span></a>
+          </div>
+          <div class="tour-stage">
+            <div id="today-view" class="tour-panel" hidden><div id="tour-today" class="app-preview"></div></div>
+            <div id="progress-view" class="tour-panel"></div>
+            <div id="journey-view" class="tour-panel" hidden></div>
+            <p class="demo-note" data-i18n="fiction">Interactive demo · Sample data</p>
+          </div>
+        </div>
+      </section>
+      <section id="install" class="installation section" aria-labelledby="install-title">
+        <div class="section-heading">
+          <p class="eyebrow" data-i18n="installNav">How to install</p>
+          <h2 id="install-title" data-i18n="installHeading">Your journey, on your Home Screen.</h2>
+          <p class="install-lead" data-i18n="installLead">Add My GOAT Journey to your Home Screen and open it like an app. Keep tracking your habits offline after initial setup.</p>
+        </div>
+        <div class="install-layout">
+          <figure class="install-illustration">
+            <div class="home-screen" aria-hidden="true">
+              <span class="home-screen-line"></span>
+              <img src="assets/My_GOAT_Journey_color_symbol.png" alt="" width="1254" height="1254" loading="lazy">
+              <span class="home-screen-name">My GOAT Journey</span>
+              <span class="home-screen-note" data-i18n="installIconNote">A little closer to your next step.</span>
+            </div>
+            <figcaption data-i18n="installIllustration">Home Screen illustration · Appearance varies by device</figcaption>
+          </figure>
+          <div class="install-guide">
+            <div id="install-platforms" class="install-platforms" aria-label="Installation platform" data-label="installPlatforms" hidden>
+              <button type="button" id="install-tab-iphone" aria-controls="install-iphone">iPhone</button>
+              <button type="button" id="install-tab-android" aria-controls="install-android">Android</button>
+              <button type="button" id="install-tab-computer" aria-controls="install-computer" data-i18n="installComputer">Computer</button>
+            </div>
+            <div id="install-panels">
+              <div id="install-iphone" class="install-panel">
+                <h3>iPhone · Safari</h3>
+                <ol>
+                  <li data-i18n="installIphone1">Open the app in Safari using the link below.</li>
+                  <li data-rich-i18n="installIphone2">Choose <strong>Share</strong> → <strong>Add to Home Screen</strong>. You may need to open Safari’s <strong>More</strong> menu to find <strong>Share</strong>.</li>
+                  <li data-rich-i18n="installIphone3">Leave <strong>Open as Web App</strong> enabled if offered, then tap <strong>Add</strong>.</li>
+                </ol>
+              </div>
+              <div id="install-android" class="install-panel">
+                <h3>Android · Chrome</h3>
+                <ol>
+                  <li data-i18n="installAndroid1">Open the app in Chrome using the link below.</li>
+                  <li data-rich-i18n="installAndroid2">Open the browser menu (⋮) → <strong>Install and create shortcut</strong> → <strong>Install</strong>. Wording varies: you may see <strong>Install app</strong> or <strong>Add to Home screen</strong>.</li>
+                  <li data-i18n="installAndroid3">Follow the on-screen instructions and confirm installation.</li>
+                </ol>
+              </div>
+              <div id="install-computer" class="install-panel">
+                <h3 data-i18n="installComputerHeading">Computer · Supported browsers</h3>
+                <ol>
+                  <li data-i18n="installComputer1">Open the app in a browser that supports installation, such as Chrome.</li>
+                  <li data-rich-i18n="installComputer2">Use its install control or menu. In Chrome: <strong>Cast, save, and share</strong> → <strong>Install page as app…</strong></li>
+                  <li data-i18n="installComputer3">Confirm installation. If unavailable, keep using the app in your browser or bookmark it.</li>
+                </ol>
+              </div>
+            </div>
+            <a class="button install-entry" href="app/" data-i18n="installOpen">Open the app to install</a>
+            <p class="install-entry-note" data-i18n="installEntryNote">This opens the app. Then follow your browser’s installation steps there.</p>
+            <div class="install-offline">
+              <h3 data-i18n="installOfflineHeading">Before you go offline</h3>
+              <p data-i18n="installOffline">Open the installed app while connected and let offline preparation finish. Reopen it once online before using it offline.</p>
+            </div>
+            <p class="install-optional" data-i18n="installOptional">Installation is optional. You can keep using the app in your browser.</p>
+          </div>
+        </div>
+      </section>
+      <section id="privacy" class="privacy section" aria-labelledby="privacy-title">
+        <div class="privacy-intro">
+          <p class="eyebrow" data-i18n="privacyEyebrow">A little less online. A little more yours.</p>
+          <h2 id="privacy-title" data-i18n="privacyHeading">Your routine is personal. Your data is too.</h2>
+          <p data-i18n="privacyLead">No account, login, or email address required. Your habit definitions, completion records, and progress history are stored in the browser on your device.</p>
+          <p data-i18n="privacyLocal">These records are not automatically sent to a backend or synchronized across devices. You decide when to export a backup and where to keep it.</p>
+          <p class="backup-note" data-i18n="backupWarning">Local also means yours to look after: clearing browser or site data can remove your records. Keep regular, private backups.</p>
+        </div>
+        <div class="faq">
+          <h3 data-i18n="questions">A few things worth knowing</h3>
+          <details><summary data-i18n="serverQuestion">Are my habit records sent to a server?</summary><p data-i18n="serverAnswer">No. The app stores your habit records in this browser’s local database, not on an application server. There is no automatic cross-device synchronization.</p></details>
+          <details><summary data-i18n="backupQuestion">How do I move to another device?</summary><p data-i18n="backupAnswer">In Settings, choose Export backup. Keep the complete JSON file private; it is not encrypted by the app. On the other device, open Settings and import the backup. The app validates it and asks you to confirm before replacing all existing records. It does not merge histories. Export the destination’s records first if you want to keep them.</p></details>
+          <details><summary data-i18n="offlineQuestion">Can I use it offline?</summary><p data-i18n="offlineAnswer">Yes, after initial preparation in a supported browser. Open the app online, let offline preparation finish, then close and reopen it once online. Test a fresh opening without internet before relying on offline tracking. Installation is optional; this landing page itself is not available offline. Browser storage can be cleared or removed, so keep private backups.</p></details>
+        </div>
+      </section>
+      <section class="closing" aria-labelledby="closing-title">
+        <h2 id="closing-title" data-i18n="closingHeading">You don’t need a perfect plan.<br>Just a first step.</h2>
+        <a class="button light" href="app/"><span data-i18n="start">Get started</span><span aria-hidden="true">↗</span></a>
+      </section>
+    </main>
+    <footer>
+      <p class="footer-brand">My GOAT Journey</p>
+      <div><a href="licenses.html" data-i18n="licenses">Licenses</a></div>
+    </footer>
+  </div>
+  <noscript><p class="noscript">Interactive examples and the language selector require JavaScript. <a href="app/">Open the app</a>.</p></noscript>
+</body>
+</html>

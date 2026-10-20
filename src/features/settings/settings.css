@@ -1,0 +1,16 @@
+.settings-content { display: grid; gap: 16px; min-width: 0; }
+.settings-content .settings-section { margin: 0; padding: 16px; min-width: 0; background: var(--surface); border: 1px solid #d5dfce; border-radius: 15px; }
+.settings-content .settings-section > h2 { margin: 0 0 12px; font-size: 1.3125rem; line-height: 1.35; }
+.settings-content label { margin: 12px 0 8px; }
+.settings-content .checkbox-label { margin: 16px 0 0; }
+.settings-content .checkbox-label input { flex-shrink: 0; }
+.settings-content .settings-help { margin: 8px 0; color: var(--muted); font-size: .9375rem; line-height: 1.5; }
+.settings-content .settings-help + button { margin-top: 8px; }
+.settings-content .settings-restore { margin-top: 20px; padding-top: 16px; border-top: 1px solid #d5dfce; }
+.settings-content input[type=file] { min-width: 0; max-width: 100%; }
+.settings-content .confirmation { background: transparent; border: 0; border-top: 1px solid #d5dfce; border-radius: 0; padding: 16px 0 0; margin: 20px 0 0; }
+.settings-content .confirmation p { margin: 8px 0; }
+.settings-content .action-row { margin-bottom: 0; }
+.settings-content .delete-section { margin-top: 8px; }
+.settings-content .destructive { background: transparent; }
+.settings-content > [role=alert], .settings-content > [role=status] { margin: 0; }

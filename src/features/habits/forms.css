@@ -1,0 +1,23 @@
+/* Compact goal forms; onboarding reuses these established input/weekday controls. */
+.habit-form { margin-top: 12px; min-width: 0; }
+.habit-form label { margin: 12px 0 6px; }
+.habit-form > label:first-child { margin-top: 0; }
+.habit-form p { margin: 8px 0; }
+.habit-form textarea { min-height: 5.5em; line-height: 1.5; resize: vertical; white-space: pre-wrap; overflow-wrap: anywhere; }
+.habit-form input, .habit-form select, .habit-form textarea { max-width: 100%; }
+.habit-form fieldset { min-width: 0; margin: 16px 0; }
+.habit-form legend { margin-bottom: 8px; }
+.habit-form .weekdays { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; margin-bottom: 8px; }
+.habit-form { container: habit-form / inline-size; }
+.habit-form .weekdays button { grid-column: span 2; min-width: 44px; min-height: 44px; padding: 8px 0; white-space: nowrap; }
+.habit-form .weekdays button:nth-child(5) { grid-column: 2 / span 2; }
+.habit-form .weekdays button:nth-child(6) { grid-column: 4 / span 2; }
+.habit-form .weekdays button:nth-child(7) { grid-column: 6 / span 2; }
+/* Seven columns only when each target has both 44px and text-scaled room. */
+@container habit-form (min-width: calc(max(308px, 15.4em) + 24px)) {
+  .habit-form .weekdays { grid-template-columns: repeat(14, minmax(0, 1fr)); }
+  .habit-form .weekdays button:nth-child(n) { grid-column: span 2; }
+}
+.habit-form .action-row { margin: 12px 0 0; }
+.habit-form .secondary { background: var(--surface); color: var(--primary); }
+.habit-form .every-day-shortcut[aria-pressed=true] { background: var(--primary); color: white; }

@@ -1,0 +1,38 @@
+{
+  "name": "my-goat-journey",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "format:check": "prettier --check \"{src,tests,e2e,config,scripts}/**/*.{ts,tsx,mts}\" \"*.ts\" tsconfig.json package.json .prettierrc.json eslint.config.mjs",
+    "format": "prettier --write \"{src,tests,e2e,config,scripts}/**/*.{ts,tsx,mts}\" \"*.ts\" tsconfig.json package.json .prettierrc.json eslint.config.mjs",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "node scripts/build-site.mjs",
+    "e2e": "playwright test"
+  },
+  "overrides": {
+    "esbuild": "0.28.1"
+  },
+  "dependencies": {
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.15",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "typescript": "5.9.3",
+    "vite": "7.3.6",
+    "vitest": "4.1.11",
+    "@playwright/test": "1.56.1",
+    "fake-indexeddb": "6.2.4",
+    "prettier": "3.9.10",
+    "eslint": "10.13.0",
+    "typescript-eslint": "8.72.0",
+    "eslint-plugin-react-hooks": "7.1.1"
+  }
+}
