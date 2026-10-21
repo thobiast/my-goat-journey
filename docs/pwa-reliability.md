@@ -170,6 +170,89 @@ matching `clients` metadata cache. Metadata contains document/version assignment
 not diary facts. No operation clears IndexedDB, unrelated caches, localStorage or
 other browser/user records.
 
+## Interrupted installation recovery
+
+A newly owned installation records `installing/<version>` (body: the same version)
+in the app/base metadata cache **before** opening or writing its shell cache. This
+is ownership evidence, not a timestamp or expiring lease. An existing retained
+same-version shell never acquires scratch ownership and its verified entries are
+not overwritten. Before owning a **new incarnation** of an absent shell, remove
+its stale retirement entry, then record ownership. Retirement evidence for a
+retained shell is never removed by installation. If an absent shell still has an
+active/installed completion pointer, deny recreation rather than let that stale
+pointer certify incomplete new bytes.
+
+| Durable state | Meaning and next transition |
+|---|---|
+| No ownership marker | Retained/legacy shell; interruption recovery cannot authorize deletion. |
+| Unsealed ownership marker, no completed-publication evidence | Newly owned incomplete installation, possibly without a cache yet. |
+| `X-App-Shell-Phase: verified`, even without publication pointers | Complete verified bootstrap incarnation; retain it and retry all signed downloads before publication, never treat it as initial scratch. |
+| `installed`, `active` or exact `retired/<version>` evidence plus marker | Previously completed publication; only stale marker housekeeping, not disposable scratch. |
+| Cache absent, unsealed ownership marker present | Deletion may have completed; repeat authorized deletion and then remove the marker. Verified evidence with an absent cache instead denies recreation. |
+
+All ownership establishment, recovery, retained-name detection, transfer,
+publication and owned deletion run under the existing shared lifecycle Web Lock.
+Acquiring it after worker termination proves there is no participating installer
+still using the cache handle; no age or guessed timeout authorizes deletion.
+Recovery runs before installation and during active-worker cleanup (activation and
+subsequent shell asset requests). Ordinary recovery requires readable, valid active
+and installed pointers, known assignments for every in-scope window, and a readable
+metadata snapshot. It protects active/installed versions, **all** durable and pending
+document assignments, and previously completed/retired rollback versions. Unknown,
+uncontrolled or suspended windows, malformed/missing metadata and the quota-failure
+fence retain ambiguous shells. Existing retired-shell cleanup retains its separate
+reachability rules.
+
+For an exact valid ownership key/value pair with no completion or reachability
+evidence, delete the named shell **first**, await deletion, then remove its marker.
+Failure or interruption leaves retry evidence; absence of a cache is safe to retry.
+This handles intent-before-open, partial individual writes and complete transfers
+that never published. Successful installation first retires its predecessor, then
+publishes `installed` as its last required metadata write. Only afterward does it
+remove its ownership marker, best effort and outside caught-failure deletion.
+Thus termination after publication cannot turn a successful waiting shell into
+scratch: the installed pointer protects it, and replacement records retirement
+before superseding that pointer. Marker removal failure never rejects a completed
+installation. Unresolved same-version ownership denies retry before opening or
+mutating that possibly partial cache; an unambiguous retry first recovers it and
+transfers a fresh shell.
+
+First installation has a narrower, positively recorded bootstrap path. An ownership
+marker carries `X-App-Shell-Phase: initial` only when the registration's scope matches
+exactly, it has no active/waiting worker, the app/base metadata is empty, no other
+app/base cache exists, and window enumeration succeeds. This tag is not inferred
+later from missing pointers. Recovery requires that exact tag/key/value, **both**
+pointers absent, no active/waiting worker, and the namespace containing only this
+ownership entry and its optional shell cache. Any assignment (durable or pending),
+retirement, other metadata/cache, invalid client identity or unreadable state denies
+bootstrap recovery. Empty registration slots do not prove that a document has no
+broader-scope or unregistered controller. Deletion authority instead comes from
+the positive tag: this **new cache incarnation has never been published**, and
+participating workers cannot establish a document assignment while recovery holds
+the shared lock. Any existing assignment or old namespace evidence blocks this
+exception. A normal uncontrolled first-entry document therefore does not prevent
+recovery, without inferring controller identity from registration slots.
+
+Before publication, after every transfer/write has completed, installation atomically
+replaces `initial` with `X-App-Shell-Phase: verified`. This required write permanently
+revokes bootstrap deletion authority before `installed` can be published. Interruption
+before this transition deletes owned incomplete bytes and rebuilds on an ordinary
+same-version retry. Interruption afterward retains a fully verified shell; the same
+version retries all integrity-checked downloads without overwriting retained responses,
+then publishes normally. Failed deletion/marker cleanup keeps retry evidence; a failed
+verification-state write cannot publish. Once sealing succeeds, caught publication
+failure also preserves the complete shell and verified marker for a later retry.
+A surviving verified marker is completion
+evidence even if pointers are later lost, never initial scratch. A missing shell with
+that evidence remains ambiguous and cannot be recreated beneath it.
+
+This is deliberately not a prefix sweep. Older unmarked or untagged first-install
+orphans, and missing-metadata states without the bootstrap proof above, remain
+conservative. A verified-but-unpublished shell remains tracked and retained until
+same-version completion or other existing safe retirement, rather than being guessed
+abandoned. Storage eviction and nonparticipating worker revisions cannot be repaired
+or coordinated retroactively.
+
 ## Cache coordination and document coherence
 
 Each existing document retains its original shell and asset version after worker

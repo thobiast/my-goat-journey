@@ -2,6 +2,7 @@ import { test, expect, chromium, type Page } from '@playwright/test';
 import { createServer, request as upstreamRequest, type Server } from 'node:http';
 import { readFile, writeFile, mkdir, mkdtemp } from 'node:fs/promises';
 import { NativeTransferStall } from './support/native-transfer-stall';
+import { interruptedInstallationRegressions } from './support/interrupted-installation-regressions';
 import { spawn } from 'node:child_process';
 import { resolveSite } from '../config/site.mjs';
 import type { Dataset } from '../src/domain/types';
@@ -197,6 +198,7 @@ async function setup(
   language: 'en' | 'pt' = 'en',
   reloadFirst = true,
   stopEntry = true,
+  waitForInstallation = true,
 ) {
   await page.goto(`${origin}/`);
   expect(await page.evaluate(() => window.isSecureContext)).toBe(true);
@@ -230,6 +232,7 @@ async function setup(
   await expect(
     page.getByRole('heading', { name: language === 'en' ? 'Today' : 'Hoje', exact: true }),
   ).toBeVisible();
+  if (!waitForInstallation) return; // Network-only diary setup before the first registration.
   await expect
     .poll(() =>
       page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.active?.state),
@@ -340,6 +343,34 @@ async function holdParse(page: Page) {
     };
   });
 }
+
+interruptedInstallationRegressions({
+  appBase,
+  cachePrefix,
+  origin,
+  evidence,
+  setup,
+  setupBeforeRegistration: (page) => setup(page, 'en', false, false, false),
+  pointer,
+  switchBuild,
+  switchLaterBuild: (page) => switchBuild(page, third),
+  acceptSettings,
+  candidate: () => {
+    target = next;
+  },
+  incumbent: () => {
+    target = first;
+  },
+  offline: () => {
+    networkAvailable = false;
+  },
+  online: () => {
+    networkAvailable = true;
+  },
+  stall: (value) => {
+    transferStall = value;
+  },
+});
 
 test('offline reload, writes, destinations, XP and native backup survive reopening', async ({
   page,

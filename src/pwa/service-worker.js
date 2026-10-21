@@ -11,6 +11,9 @@ const activeKey = absolute(`${metaPath}active`);
 const installedKey = absolute(`${metaPath}installed`);
 const clientKey = id => absolute(`${metaPath}client/${encodeURIComponent(id)}`);
 const retiredKey = version => absolute(`${metaPath}retired/${version}`);
+const installingKey = version => absolute(`${metaPath}installing/${version}`);
+// Only exact marker key/value pairs can authorize shell-name construction.
+const validVersion = version => typeof version === 'string' && /^[a-zA-Z0-9_-]+$/.test(version);
 const inScope = client => {
   const url = new URL(client.url);
   return url.origin === self.location.origin && url.pathname.startsWith(CONFIG.base);
@@ -35,6 +38,83 @@ const withShellLock = async action => {
   return self.navigator.locks.request(shellLock, action);
 };
 
+// Positive bootstrap evidence is admitted only before any app/base shell or
+// metadata exists, with no active/waiting registration. This is not a claim about
+// other window controllers: the tag identifies a new, never-published cache
+// incarnation. Any assignment blocks recovery; client enumeration must work.
+async function firstInstallation(metadata, version, owned = false) {
+  if (self.registration.scope !== absolute(CONFIG.base) || self.registration.active || self.registration.waiting) return false;
+  const entries = await metadata.keys();
+  if (owned ? entries.length !== 1 || entries[0].url !== installingKey(version) : entries.length !== 0) return false;
+  const allowed = new Set([META]);
+  if (owned) allowed.add(`${SHELL_PREFIX}${version}`);
+  if ((await caches.keys()).some(name => name.startsWith(PREFIX) && !allowed.has(name))) return false;
+  for (const client of await windows()) if (typeof client.id !== 'string' || !client.id) return false;
+  return true;
+}
+
+// Caller holds shellLock, so no live installer can own a deletable handle.
+// Unlike retirement cleanup, interrupted-install recovery protects ALL durable
+// assignments, even an observed assignment whose client is no longer enumerated.
+async function recoverInstallations(metadata) {
+  const active = await read(metadata, activeKey);
+  const installed = await read(metadata, installedKey);
+  if (!validVersion(active) || !validVersion(installed)) {
+    // Absence alone is not bootstrap proof (quota fencing can remove active).
+    if (active !== undefined || installed !== undefined) return;
+    const entries = await metadata.keys();
+    if (entries.length !== 1) return;
+    const request = entries[0];
+    const marker = await metadata.match(request);
+    const version = await marker?.text();
+    if (!validVersion(version) || request.url !== installingKey(version) || marker.headers.get('X-App-Shell-Phase') !== 'initial') return;
+    if (!await firstInstallation(metadata, version, true)) return;
+    // Keep ownership until deletion settles; a later same-version retry repeats
+    // this operation if termination/deletion interrupts marker housekeeping.
+    await caches.delete(`${SHELL_PREFIX}${version}`);
+    await metadata.delete(request);
+    return;
+  }
+  const used = new Set([active, installed]);
+  for (const client of await windows()) {
+    const version = await read(metadata, clientKey(client.id));
+    if (!validVersion(version)) return; // Includes unknown/uncontrolled/suspended windows.
+    used.add(version);
+  }
+  const entries = await metadata.keys();
+  const completed = new Set([active, installed]);
+  for (const request of entries) {
+    if (request.url.startsWith(absolute(`${metaPath}client/`))) {
+      const version = await read(metadata, request);
+      if (!validVersion(version)) return;
+      used.add(version);
+    } else if (request.url.startsWith(absolute(`${metaPath}retired/`))) {
+      const version = await read(metadata, request);
+      if (!validVersion(version) || request.url !== retiredKey(version)) return;
+      // Retirement proves earlier successful publication. A leftover ownership
+      // marker is housekeeping, never permission to discard a rollback shell.
+      completed.add(version);
+    }
+  }
+  for (const request of entries) {
+    if (!request.url.startsWith(absolute(`${metaPath}installing/`))) continue;
+    const marker = await metadata.match(request);
+    const version = await marker?.text();
+    if (!validVersion(version) || request.url !== installingKey(version)) continue;
+    try {
+      if (completed.has(version)) await metadata.delete(request);
+      else if (!used.has(version) && marker.headers.get('X-App-Shell-Phase') !== 'verified') {
+        // Delete first. A rejection/termination leaves durable retry evidence;
+        // a false result means the cache is already absent (also safe to retry).
+        await caches.delete(`${SHELL_PREFIX}${version}`);
+        await metadata.delete(request);
+      }
+    } catch {
+      // Keep the marker on failed deletion; another lifecycle event can retry.
+    }
+  }
+}
+
 // Retire both previous active shells and superseded completed candidates.
 // The latest successful install stays protected while it waits for consent.
 async function cleanup() {
@@ -43,6 +123,7 @@ async function cleanup() {
   return withShellLock(async () => {
     const metadata = await caches.open(META);
     if (await read(metadata, activeKey) !== CONFIG.version) return;
+    await recoverInstallations(metadata);
     const live = await windows();
     const used = new Set([CONFIG.version]);
     used.add(await read(metadata, installedKey));
@@ -239,13 +320,50 @@ async function transferShell(cache) {
 
 self.addEventListener('install', event => {
   event.waitUntil(withShellLock(async () => {
+    const metadata = await caches.open(META);
+    await recoverInstallations(metadata).catch(() => {});
+    // If recovery cannot prove a marked version disposable or completed, never
+    // reuse its possibly partial responses as a retained verified rollback.
+    const ownership = await metadata.match(installingKey(CONFIG.version));
+    const verified = await ownership?.clone().text() === CONFIG.version && ownership.headers.get('X-App-Shell-Phase') === 'verified';
+    if (ownership) {
+      const completed = verified || await read(metadata, installedKey) === CONFIG.version ||
+        await read(metadata, activeKey) === CONFIG.version ||
+        await read(metadata, retiredKey(CONFIG.version)) === CONFIG.version;
+      if (!completed) throw new Error('App-shell installation ownership is unresolved');
+    }
     // A same-version rollback may reuse a retained shell, but does not own it
     // or its verified responses. Active cleanup cannot detach this handle.
     const retained = (await caches.keys()).includes(CACHE);
-    const cache = await caches.open(CACHE);
+    let initial = false;
+    let sealed = verified;
+    if (!retained) {
+      // Completion pointers belong to the previous cache incarnation. If its
+      // name disappeared, do not recreate scratch beneath that stale evidence.
+      if (verified || await read(metadata, activeKey) === CONFIG.version || await read(metadata, installedKey) === CONFIG.version) {
+        throw new Error('App-shell completion is unresolved');
+      }
+      initial = await firstInstallation(metadata, CONFIG.version);
+      // Deletion can terminate before its retirement cleanup. Clear only an
+      // absent shell's stale retirement BEFORE recording ownership of a new one.
+      // Never remove this evidence for a retained rollback on a failed install.
+      await metadata.delete(retiredKey(CONFIG.version));
+      await metadata.put(installingKey(CONFIG.version), new Response(CONFIG.version, {
+        headers: initial ? { 'X-App-Shell-Phase': 'initial' } : {},
+      }));
+    }
     try {
+      const cache = await caches.open(CACHE);
       await transferShell(cache);
-      const metadata = await caches.open(META);
+      // Atomically retire bootstrap deletion authority BEFORE publication. A
+      // restart here retains a fully verified shell and retries its downloads;
+      // lost pointers can never turn a completed cache back into initial scratch.
+      if (initial) {
+        await metadata.put(installingKey(CONFIG.version), new Response(CONFIG.version, {
+          headers: { 'X-App-Shell-Phase': 'verified' },
+        }));
+        sealed = true;
+      }
       const previous = await read(metadata, installedKey);
       // Keep the successful candidate protected until retirement is recorded.
       // Preserve existing retirement markers if publication fails; cleanup
@@ -254,8 +372,17 @@ self.addEventListener('install', event => {
       if (previous && previous !== CONFIG.version) await metadata.put(retiredKey(previous), new Response(previous));
       await metadata.put(installedKey, new Response(CONFIG.version));
     } catch (error) {
-      if (!retained) await caches.delete(CACHE);
+      if (!retained && !sealed) {
+        // Never erase ownership until deletion has settled successfully. Sealing
+        // already revoked scratch authority, including on publication failure.
+        await caches.delete(CACHE);
+        await metadata.delete(installingKey(CONFIG.version));
+      }
       throw error;
     }
+    // Publication is committed. A failure here must not reject installation or
+    // run owned-failure cleanup; the installed/retired evidence protects success
+    // if this worker terminates before housekeeping finishes.
+    if (!retained || verified) await metadata.delete(installingKey(CONFIG.version)).catch(() => {});
   }));
 });

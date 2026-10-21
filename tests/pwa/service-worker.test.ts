@@ -100,6 +100,9 @@ function worker(
   const skipWaiting = vi.fn(async () => {});
   const claim = vi.fn(async () => {});
   const matchAll = vi.fn(async () => live);
+  const registration: { scope: string; active?: object; waiting?: object } = {
+    scope: `${origin}${base}`,
+  };
   runInNewContext(
     template.replace(
       '__APP_SHELL_CONFIG__',
@@ -114,7 +117,7 @@ function worker(
       self: {
         location: { origin },
         navigator: { locks },
-        registration: { scope: `${origin}${base}` },
+        registration,
         addEventListener: (type: string, listener: (event: Record<string, unknown>) => void) =>
           listeners.set(type, listener),
         skipWaiting,
@@ -155,7 +158,798 @@ function worker(
     });
   }
 
-  return { base, files, caches, live, network, skipWaiting, claim, matchAll, dispatch, request };
+  return {
+    base,
+    files,
+    caches,
+    live,
+    registration,
+    network,
+    skipWaiting,
+    claim,
+    matchAll,
+    dispatch,
+    request,
+  };
+}
+
+// A termination model: only durable CacheStorage crosses into the new worker
+// and lock context. No rejected install, timer, catch or finally runs here.
+async function persistedRestart(source: MemoryCaches) {
+  const restored = new MemoryCaches();
+  for (const name of await source.keys()) {
+    const cache = await source.open(name);
+    const destination = await restored.open(name);
+    for (const request of await cache.keys()) {
+      await destination.put(request, (await cache.match(request))!);
+    }
+  }
+  return restored;
+}
+
+for (const base of ['/', '/my-goat-journey/app/', '/alternate/app/']) {
+  test(`${base} interrupted installation ownership recovers after a persisted restart with A live`, async () => {
+    const caches = new MemoryCaches();
+    const live: Client[] = [];
+    const a = worker(base, 'A', caches, live);
+    await a.dispatch('install');
+    await a.dispatch('activate');
+    await a.request(base, '', 'live-A', true);
+    live.push({ id: 'live-A', url: `${origin}${base}` });
+    await a.request(`${base}assets/app.js`, 'live-A');
+    const prefix = `my-goat-journey:${encodeURIComponent(base)}:`;
+    const metadata = await caches.open(`${prefix}clients`);
+    // Seed the durable boundary after B's first write, before publication.
+    await metadata.put(`${base}__app_shell__/installing/B`, new Response('B'));
+    const partial = await caches.open(`${prefix}shell:B`);
+    await partial.put(`${base}index.html`, new Response('partial B'));
+    const restarted = await persistedRestart(caches);
+    const c = worker(base, 'C', restarted, live);
+    await c.dispatch('install');
+    await c.dispatch('activate');
+    expect(await restarted.keys()).not.toContain(`${prefix}shell:B`);
+    const after = await restarted.open(`${prefix}clients`);
+    expect(await after.match(`${base}__app_shell__/installing/B`)).toBeUndefined();
+    c.network.mockRejectedValue(new Error('offline'));
+    expect(await (await c.request(`${base}assets/app.js`, 'live-A'))!.text()).toBe(
+      `A:${base}assets/app.js`,
+    );
+    const fresh = worker(base, 'C', await persistedRestart(restarted), live);
+    fresh.network.mockRejectedValue(new Error('offline'));
+    expect(await (await fresh.request(base, '', 'offline-C', true))!.text()).toBe(
+      `C:${base}index.html`,
+    );
+    expect(await (await fresh.request(`${base}assets/app.js`, 'offline-C'))!.text()).toBe(
+      `C:${base}assets/app.js`,
+    );
+  });
+}
+
+async function recoveryFixture(base: string) {
+  const caches = new MemoryCaches();
+  const live: Client[] = [];
+  const a = worker(base, 'A', caches, live);
+  await a.dispatch('install');
+  await a.dispatch('activate');
+  await a.request(base, '', 'live-A', true);
+  live.push({ id: 'live-A', url: `${origin}${base}` });
+  await a.request(`${base}assets/app.js`, 'live-A');
+  const prefix = `my-goat-journey:${encodeURIComponent(base)}:`;
+  const metadata = await caches.open(`${prefix}clients`);
+  const marker = `${base}__app_shell__/installing/B`;
+  const shell = `${prefix}shell:B`;
+  const seed = async (version = 'B') => {
+    await metadata.put(`${base}__app_shell__/installing/${version}`, new Response(version));
+    await (
+      await caches.open(`${prefix}shell:${version}`)
+    ).put(`${base}index.html`, new Response(`partial ${version}`));
+  };
+  return { caches, live, a, prefix, metadata, marker, shell, seed };
+}
+
+for (const base of ['/', '/my-goat-journey/app/', '/alternate/app/']) {
+  for (const phase of ['intent', 'open', 'write', 'transferred', 'published']) {
+    test(`${base} persisted termination boundary ${phase} preserves publication ordering`, async () => {
+      vi.useFakeTimers();
+      try {
+        const { caches, live, prefix, metadata, marker, shell } = await recoveryFixture(base);
+        const reached = barrier();
+        const never = new Promise<never>(() => {});
+        const open = caches.open.bind(caches);
+        const put = metadata.put.bind(metadata);
+        vi.spyOn(caches, 'open').mockImplementation(async (name) => {
+          if (name !== shell) return open(name);
+          expect(await (await metadata.match(marker))!.text()).toBe('B');
+          if (phase === 'intent') {
+            reached.resolve();
+            return never;
+          }
+          const cache = await open(name);
+          if (phase === 'open') {
+            reached.resolve();
+            return never;
+          }
+          if (phase === 'write') {
+            const write = cache.put.bind(cache);
+            vi.spyOn(cache, 'put').mockImplementationOnce(async (request, response) => {
+              await write(request, response);
+              reached.resolve();
+              return never;
+            });
+          }
+          return cache;
+        });
+        vi.spyOn(metadata, 'put').mockImplementation(async (request, response) => {
+          if (
+            key(request) === key(`${base}__app_shell__/installed`) &&
+            (phase === 'transferred' || phase === 'published')
+          ) {
+            if (phase === 'published') await put(request, response);
+            reached.resolve();
+            return never;
+          }
+          return put(request, response);
+        });
+        const b = worker(base, 'B', caches, live);
+        // Deliberately never reject/resolve this worker: copy only persistent
+        // state to a fresh context, with none of its promises/locks/timers.
+        void b.dispatch('install');
+        await reached.promise;
+        vi.restoreAllMocks();
+        const persisted = await persistedRestart(caches);
+        const oldShell = persisted.entries.get(shell);
+        expect(oldShell?.entries.size ?? 0).toBe(
+          phase === 'intent' ? 0 : phase === 'open' ? 0 : phase === 'write' ? 1 : b.files.length,
+        );
+        expect(await (await persisted.open(`${prefix}clients`)).match(marker)).toBeDefined();
+        const c = worker(base, 'C', persisted, live);
+        await c.dispatch('install');
+        expect((await persisted.keys()).includes(shell)).toBe(phase === 'published');
+        expect(await (await persisted.open(`${prefix}clients`)).match(marker)).toBeUndefined();
+        c.network.mockRejectedValue(new Error('offline'));
+        expect(await (await c.request(`${base}assets/app.js`, 'live-A'))!.text()).toBe(
+          `A:${base}assets/app.js`,
+        );
+      } finally {
+        vi.restoreAllMocks();
+        vi.useRealTimers();
+      }
+    });
+  }
+
+  test(`${base} stale retirement cannot certify a newly owned cache incarnation`, async () => {
+    vi.useFakeTimers();
+    try {
+      const { caches, live, metadata, shell, marker } = await recoveryFixture(base);
+      // The previous incarnation was deleted, but termination prevented removal
+      // of its retirement entry. No target cache exists now.
+      await metadata.put(`${base}__app_shell__/retired/B`, new Response('B'));
+      const reached = barrier();
+      const open = caches.open.bind(caches);
+      vi.spyOn(caches, 'open').mockImplementation(async (name) => {
+        const cache = await open(name);
+        if (name === shell) {
+          const put = cache.put.bind(cache);
+          vi.spyOn(cache, 'put').mockImplementationOnce(async (request, response) => {
+            await put(request, response);
+            reached.resolve();
+            return new Promise<never>(() => {});
+          });
+        }
+        return cache;
+      });
+      void worker(base, 'B', caches, live).dispatch('install');
+      await reached.promise;
+      vi.restoreAllMocks();
+      const restarted = await persistedRestart(caches);
+      await worker(base, 'C', restarted, live).dispatch('install');
+      expect(await restarted.keys()).not.toContain(shell);
+      expect(
+        await (
+          await restarted.open(`my-goat-journey:${encodeURIComponent(base)}:clients`)
+        ).match(marker),
+      ).toBeUndefined();
+    } finally {
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+    }
+  });
+
+  test(`${base} stale retirement cleanup failure denies untracked incarnation creation`, async () => {
+    const { caches, live, metadata, marker, shell } = await recoveryFixture(base);
+    const retired = `${base}__app_shell__/retired/B`;
+    await metadata.put(retired, new Response('B'));
+    const remove = metadata.delete.bind(metadata);
+    vi.spyOn(metadata, 'delete').mockImplementation(async (request) => {
+      if (key(request) === key(retired)) throw new Error('retirement cleanup failed');
+      return remove(request);
+    });
+    const b = worker(base, 'B', caches, live);
+    await expect(b.dispatch('install')).rejects.toThrow('retirement cleanup failed');
+    expect(await metadata.match(marker)).toBeUndefined();
+    expect(await metadata.match(retired)).toBeDefined();
+    expect(await caches.keys()).not.toContain(shell);
+    expect(b.network).not.toHaveBeenCalled();
+  });
+
+  for (const pointer of ['active', 'installed']) {
+    test(`${base} absent shell with stale ${pointer} evidence rejects new incarnation`, async () => {
+      const { caches, live, metadata, shell, marker } = await recoveryFixture(base);
+      await metadata.put(`${base}__app_shell__/${pointer}`, new Response('B'));
+      const b = worker(base, 'B', caches, live);
+      await expect(b.dispatch('install')).rejects.toThrow('completion is unresolved');
+      expect(await caches.keys()).not.toContain(shell);
+      expect(await metadata.match(marker)).toBeUndefined();
+      expect(b.network).not.toHaveBeenCalled();
+    });
+  }
+
+  test(`${base} interrupted first install retries the same version with complete fresh bytes`, async () => {
+    const caches = new MemoryCaches();
+    const prefix = `my-goat-journey:${encodeURIComponent(base)}:`;
+    const metadata = await caches.open(`${prefix}clients`);
+    await metadata.put(
+      `${base}__app_shell__/installing/B`,
+      new Response('B', {
+        headers: { 'X-App-Shell-Phase': 'initial' },
+      }),
+    );
+    await (
+      await caches.open(`${prefix}shell:B`)
+    ).put(`${base}index.html`, new Response('partial B'));
+    const restarted = await persistedRestart(caches);
+    const b = worker(base, 'B', restarted);
+    await b.dispatch('install');
+    expect(b.network).toHaveBeenCalledTimes(b.files.length);
+    for (const path of b.files)
+      expect(await (await (await restarted.open(`${prefix}shell:B`)).match(path))!.text()).toBe(
+        `B:${path}`,
+      );
+    await b.dispatch('activate');
+    const fresh = worker(base, 'B', await persistedRestart(restarted));
+    fresh.network.mockRejectedValue(new Error('offline'));
+    expect(await (await fresh.request(base, '', 'fresh-offline', true))!.text()).toBe(
+      `B:${base}index.html`,
+    );
+    expect(await (await fresh.request(`${base}assets/app.js`, 'fresh-offline'))!.text()).toBe(
+      `B:${base}assets/app.js`,
+    );
+  });
+
+  for (const phase of ['intent', 'partial', 'complete', 'sealed', 'published']) {
+    test(`${base} first-install persisted ${phase} interruption retries without partial reuse`, async () => {
+      vi.useFakeTimers();
+      try {
+        const caches = new MemoryCaches();
+        const prefix = `my-goat-journey:${encodeURIComponent(base)}:`;
+        const marker = `${base}__app_shell__/installing/B`;
+        const shell = `${prefix}shell:B`;
+        const metadata = await caches.open(`${prefix}clients`);
+        const live = [{ id: 'network-only', url: `${origin}${base}` }];
+        const reached = barrier();
+        const never = new Promise<never>(() => {});
+        const put = metadata.put.bind(metadata);
+        const open = caches.open.bind(caches);
+        vi.spyOn(caches, 'open').mockImplementation(async (name) => {
+          if (name !== shell) return open(name);
+          expect((await metadata.match(marker))!.headers.get('X-App-Shell-Phase')).toBe('initial');
+          if (phase === 'intent') {
+            reached.resolve();
+            return never;
+          }
+          const cache = await open(name);
+          if (phase === 'partial') {
+            const write = cache.put.bind(cache);
+            vi.spyOn(cache, 'put').mockImplementationOnce(async (request, response) => {
+              await write(request, response);
+              reached.resolve();
+              return never;
+            });
+          }
+          return cache;
+        });
+        vi.spyOn(metadata, 'put').mockImplementation(async (request, response) => {
+          if (phase === 'complete' && response.headers.get('X-App-Shell-Phase') === 'verified') {
+            reached.resolve();
+            return never;
+          }
+          if (
+            key(request) === key(`${base}__app_shell__/installed`) &&
+            ['sealed', 'published'].includes(phase)
+          ) {
+            if (phase === 'published') await put(request, response);
+            reached.resolve();
+            return never;
+          }
+          return put(request, response);
+        });
+        void worker(base, 'B', caches, live).dispatch('install');
+        await reached.promise;
+        vi.restoreAllMocks();
+        const restored = await persistedRestart(caches);
+        const previous = restored.entries.get(shell);
+        const beforeMarker = await (await restored.open(`${prefix}clients`)).match(marker);
+        expect(beforeMarker!.headers.get('X-App-Shell-Phase')).toBe(
+          ['sealed', 'published'].includes(phase) ? 'verified' : 'initial',
+        );
+        expect(previous?.entries.size ?? 0).toBe(
+          phase === 'intent' ? 0 : phase === 'partial' ? 1 : worker(base).files.length,
+        );
+        const deletion = vi.spyOn(restored, 'delete');
+        const retry = worker(base, 'B', restored, live);
+        await retry.dispatch('install');
+        expect(retry.network).toHaveBeenCalledTimes(retry.files.length);
+        if (['sealed', 'published'].includes(phase)) {
+          expect(deletion).not.toHaveBeenCalled();
+          expect(restored.entries.get(shell)).toBe(previous);
+        } else expect(deletion).toHaveBeenCalledWith(shell);
+        for (const path of retry.files)
+          expect(await (await (await restored.open(shell)).match(path))!.text()).toBe(`B:${path}`);
+        expect(await (await restored.open(`${prefix}clients`)).match(marker)).toBeUndefined();
+        await retry.dispatch('activate');
+        retry.network.mockRejectedValue(new Error('offline'));
+        expect(await (await retry.request(base, '', 'offline-entry', true))!.text()).toBe(
+          `B:${base}index.html`,
+        );
+      } finally {
+        vi.restoreAllMocks();
+        vi.useRealTimers();
+      }
+    });
+  }
+
+  for (const failure of ['delete', 'marker', 'repeat-interruption']) {
+    test(`${base} first-install recovery ${failure} retains evidence for another same-version retry`, async () => {
+      const prefix = `my-goat-journey:${encodeURIComponent(base)}:`;
+      const marker = `${base}__app_shell__/installing/B`;
+      const shell = `${prefix}shell:B`;
+      let caches = new MemoryCaches();
+      const metadata = await caches.open(`${prefix}clients`);
+      await metadata.put(
+        marker,
+        new Response('B', { headers: { 'X-App-Shell-Phase': 'initial' } }),
+      );
+      await (await caches.open(shell)).put(`${base}index.html`, new Response('partial'));
+      if (failure === 'delete')
+        vi.spyOn(caches, 'delete').mockRejectedValueOnce(new Error('delete interrupted'));
+      else vi.spyOn(metadata, 'delete').mockRejectedValueOnce(new Error('marker interrupted'));
+      await expect(worker(base, 'B', caches).dispatch('install')).rejects.toThrow(
+        'ownership is unresolved',
+      );
+      expect(await metadata.match(marker)).toBeDefined();
+      expect((await caches.keys()).includes(shell)).toBe(failure === 'delete');
+      caches = await persistedRestart(caches);
+      if (failure === 'repeat-interruption') {
+        const retry = worker(base, 'B', caches);
+        retry.network.mockRejectedValueOnce(new Error('another interruption'));
+        const remove = caches.delete.bind(caches);
+        vi.spyOn(caches, 'delete')
+          .mockImplementationOnce(remove)
+          .mockRejectedValueOnce(new Error('failed cleanup'));
+        await expect(retry.dispatch('install')).rejects.toThrow('failed cleanup');
+        caches = await persistedRestart(caches);
+      }
+      const retry = worker(base, 'B', caches);
+      await retry.dispatch('install');
+      for (const path of retry.files)
+        expect(await (await (await caches.open(shell)).match(path))!.text()).toBe(`B:${path}`);
+    });
+  }
+
+  for (const ambiguity of [
+    'active-worker',
+    'waiting-worker',
+    'scope',
+    'assignment',
+    'pending',
+    'retired',
+    'active-pointer',
+    'installed-pointer',
+    'malformed-pointer',
+    'unmarked-shell',
+    'unknown-entry',
+    'second-marker',
+    'missing-tag',
+    'unknown-tag',
+    'clients-failure',
+    'unknown-client',
+  ]) {
+    test(`${base} bootstrap recovery retains ambiguous ${ambiguity}`, async () => {
+      const caches = new MemoryCaches();
+      const prefix = `my-goat-journey:${encodeURIComponent(base)}:`;
+      const marker = `${base}__app_shell__/installing/B`;
+      const metadata = await caches.open(`${prefix}clients`);
+      await metadata.put(
+        marker,
+        new Response('B', { headers: { 'X-App-Shell-Phase': 'initial' } }),
+      );
+      const shell = await caches.open(`${prefix}shell:B`);
+      await shell.put(`${base}index.html`, new Response('partial B'));
+      const b = worker(base, 'B', caches);
+      if (ambiguity === 'active-worker') b.registration.active = {};
+      if (ambiguity === 'waiting-worker') b.registration.waiting = {};
+      if (ambiguity === 'scope') b.registration.scope = `${origin}/different-scope/`;
+      if (ambiguity === 'assignment' || ambiguity === 'pending')
+        await metadata.put(
+          `${base}__app_shell__/client/old`,
+          new Response('B', {
+            headers: ambiguity === 'pending' ? { 'X-App-Shell-Pending': '1' } : {},
+          }),
+        );
+      if (ambiguity === 'retired')
+        await metadata.put(`${base}__app_shell__/retired/A`, new Response('A'));
+      if (ambiguity === 'active-pointer')
+        await metadata.put(`${base}__app_shell__/active`, new Response('A'));
+      if (ambiguity === 'installed-pointer')
+        await metadata.put(`${base}__app_shell__/installed`, new Response('A'));
+      if (ambiguity === 'malformed-pointer')
+        await metadata.put(`${base}__app_shell__/active`, new Response(''));
+      if (ambiguity === 'unmarked-shell') await caches.open(`${prefix}shell:unmarked`);
+      if (ambiguity === 'unknown-entry')
+        await metadata.put(`${base}__app_shell__/unknown`, new Response('unknown'));
+      if (ambiguity === 'second-marker')
+        await metadata.put(`${base}__app_shell__/installing/C`, new Response('C'));
+      if (ambiguity === 'missing-tag' || ambiguity === 'unknown-tag')
+        await metadata.put(
+          marker,
+          new Response('B', {
+            headers: ambiguity === 'unknown-tag' ? { 'X-App-Shell-Phase': 'unknown' } : {},
+          }),
+        );
+      if (ambiguity === 'clients-failure')
+        b.matchAll.mockRejectedValue(new Error('clients unavailable'));
+      if (ambiguity === 'unknown-client') b.live.push({ id: '', url: `${origin}${base}` });
+      const deletion = vi.spyOn(caches, 'delete');
+      await expect(b.dispatch('install')).rejects.toThrow('ownership is unresolved');
+      expect(deletion).not.toHaveBeenCalled();
+      expect(b.network).not.toHaveBeenCalled();
+      expect(await (await shell.match(`${base}index.html`))!.text()).toBe('partial B');
+      expect(await metadata.match(marker)).toBeDefined();
+    });
+  }
+
+  test(`${base} failed bootstrap seal cannot publish, and completed metadata loss cannot restore scratch authority`, async () => {
+    const caches = new MemoryCaches();
+    const prefix = `my-goat-journey:${encodeURIComponent(base)}:`;
+    const metadata = await caches.open(`${prefix}clients`);
+    const marker = `${base}__app_shell__/installing/B`;
+    const put = metadata.put.bind(metadata);
+    const sealFailure = vi.spyOn(metadata, 'put').mockImplementation(async (request, response) => {
+      if (response.headers.get('X-App-Shell-Phase') === 'verified')
+        throw new DOMException('seal quota', 'QuotaExceededError');
+      return put(request, response);
+    });
+    await expect(worker(base, 'B', caches).dispatch('install')).rejects.toThrow('seal quota');
+    expect(await metadata.match(`${base}__app_shell__/installed`)).toBeUndefined();
+    expect(await caches.keys()).not.toContain(`${prefix}shell:B`);
+    sealFailure.mockRestore();
+    const remove = metadata.delete.bind(metadata);
+    const cleanupFailure = vi.spyOn(metadata, 'delete').mockImplementation(async (request) => {
+      if (key(request) === key(marker)) throw new Error('marker unavailable');
+      return remove(request);
+    });
+    await worker(base, 'B', caches).dispatch('install');
+    cleanupFailure.mockRestore();
+    expect((await metadata.match(marker))!.headers.get('X-App-Shell-Phase')).toBe('verified');
+    await metadata.delete(`${base}__app_shell__/installed`); // partial metadata loss
+    const restored = await persistedRestart(caches);
+    const original = restored.entries.get(`${prefix}shell:B`);
+    const deletion = vi.spyOn(restored, 'delete');
+    const retry = worker(base, 'B', restored);
+    await retry.dispatch('install');
+    expect(deletion).not.toHaveBeenCalled();
+    expect(restored.entries.get(`${prefix}shell:B`)).toBe(original);
+    expect(retry.network).toHaveBeenCalledTimes(retry.files.length);
+  });
+
+  test(`${base} publication quota after bootstrap sealing preserves the verified incarnation`, async () => {
+    const caches = new MemoryCaches();
+    const prefix = `my-goat-journey:${encodeURIComponent(base)}:`;
+    const metadata = await caches.open(`${prefix}clients`);
+    const marker = `${base}__app_shell__/installing/B`;
+    const put = metadata.put.bind(metadata);
+    const publicationFailure = vi
+      .spyOn(metadata, 'put')
+      .mockImplementation(async (request, response) => {
+        if (key(request) === key(`${base}__app_shell__/installed`))
+          throw new DOMException('publication quota', 'QuotaExceededError');
+        return put(request, response);
+      });
+    const b = worker(base, 'B', caches);
+    await expect(b.dispatch('install')).rejects.toThrow('publication quota');
+    publicationFailure.mockRestore();
+    expect(await caches.keys()).toContain(`${prefix}shell:B`);
+    expect((await metadata.match(marker))!.headers.get('X-App-Shell-Phase')).toBe('verified');
+    for (const path of b.files)
+      expect(await (await (await caches.open(`${prefix}shell:B`)).match(path))!.text()).toBe(
+        `B:${path}`,
+      );
+    const restarted = await persistedRestart(caches);
+    const failedRetry = worker(base, 'B', restarted);
+    failedRetry.network.mockRejectedValueOnce(new Error('retry offline'));
+    await expect(failedRetry.dispatch('install')).rejects.toThrow('retry offline');
+    expect(await restarted.keys()).toContain(`${prefix}shell:B`);
+    expect(
+      (await (await restarted.open(`${prefix}clients`)).match(marker))!.headers.get(
+        'X-App-Shell-Phase',
+      ),
+    ).toBe('verified');
+    await worker(base, 'B', restarted).dispatch('install');
+  });
+
+  test(`${base} stale verified bootstrap marker cannot certify a missing cache incarnation`, async () => {
+    const caches = new MemoryCaches();
+    const prefix = `my-goat-journey:${encodeURIComponent(base)}:`;
+    const metadata = await caches.open(`${prefix}clients`);
+    const marker = `${base}__app_shell__/installing/B`;
+    await metadata.put(marker, new Response('B', { headers: { 'X-App-Shell-Phase': 'verified' } }));
+    const b = worker(base, 'B', caches);
+    await expect(b.dispatch('install')).rejects.toThrow('completion is unresolved');
+    expect(await caches.keys()).not.toContain(`${prefix}shell:B`);
+    expect(await metadata.match(marker)).toBeDefined();
+    expect(b.network).not.toHaveBeenCalled();
+  });
+
+  test(`${base} untagged first-install ownership remains conservative on same-version retry`, async () => {
+    const caches = new MemoryCaches();
+    const prefix = `my-goat-journey:${encodeURIComponent(base)}:`;
+    const metadata = await caches.open(`${prefix}clients`);
+    await metadata.put(`${base}__app_shell__/installing/B`, new Response('B'));
+    await (
+      await caches.open(`${prefix}shell:B`)
+    ).put(`${base}index.html`, new Response('partial B'));
+    const restarted = await persistedRestart(caches);
+    const b = worker(base, 'B', restarted);
+    await expect(b.dispatch('install')).rejects.toThrow('ownership is unresolved');
+    expect(await restarted.keys()).toContain(`${prefix}shell:B`);
+    expect(b.network).not.toHaveBeenCalled();
+  });
+
+  test(`${base} same-version retry recovers owned partial bytes rather than reusing them`, async () => {
+    const { caches, live, prefix, metadata, marker, shell, seed } = await recoveryFixture(base);
+    await seed();
+    const restarted = await persistedRestart(caches);
+    const b = worker(base, 'B', restarted, live);
+    await b.dispatch('install');
+    for (const path of b.files)
+      expect(await (await (await restarted.open(shell)).match(path))!.text()).toBe(`B:${path}`);
+    expect(await (await restarted.open(`${prefix}clients`)).match(marker)).toBeUndefined();
+    expect(await (await metadata.match(`${base}__app_shell__/installed`))!.text()).toBe('A');
+  });
+
+  test(`${base} active recovery cannot detach a cache owned by a live installer`, async () => {
+    const { caches, live, a, metadata, marker, shell } = await recoveryFixture(base);
+    const held = barrier();
+    const release = barrier<Response>();
+    const b = worker(base, 'B', caches, live);
+    b.network.mockImplementationOnce(async () => new Response(`B:${base}index.html`));
+    b.network.mockImplementationOnce(() => {
+      held.resolve();
+      return release.promise;
+    });
+    const installing = b.dispatch('install');
+    await held.promise;
+    const handle = caches.entries.get(shell)!;
+    expect((await handle.keys()).length).toBe(1);
+    expect(await (await metadata.match(marker))!.text()).toBe('B');
+    const deletion = vi.spyOn(caches, 'delete');
+    const cleaning = a.request(`${base}icons/icon.png`, 'live-A');
+    await caches.locks.blocked.promise;
+    expect(deletion).not.toHaveBeenCalled();
+    expect(caches.entries.get(shell)).toBe(handle);
+    release.resolve(new Response(`B:${base}assets/app.js`));
+    await Promise.all([installing, cleaning]);
+    expect(caches.entries.get(shell)).toBe(handle);
+    for (const path of b.files) expect(await (await handle.match(path))!.text()).toBe(`B:${path}`);
+    expect(await metadata.match(marker)).toBeUndefined();
+    expect(await (await metadata.match(`${base}__app_shell__/installed`))!.text()).toBe('B');
+  });
+
+  test(`${base} retained rollback interruption transfers no scratch ownership across restart`, async () => {
+    vi.useFakeTimers();
+    try {
+      const { caches, live, prefix, metadata } = await recoveryFixture(base);
+      await worker(base, 'B', caches, live).dispatch('install');
+      await worker(base, 'B', caches, live).dispatch('activate');
+      const held = barrier();
+      const rollback = worker(base, 'A', caches, live);
+      rollback.network.mockImplementationOnce(() => {
+        held.resolve();
+        return new Promise<never>(() => {});
+      });
+      void rollback.dispatch('install');
+      await held.promise;
+      expect(await metadata.match(`${base}__app_shell__/installing/A`)).toBeUndefined();
+      expect(await (await metadata.match(`${base}__app_shell__/retired/A`))!.text()).toBe('A');
+      const restarted = await persistedRestart(caches);
+      const c = worker(base, 'C', restarted, live);
+      await c.dispatch('install');
+      await c.dispatch('activate');
+      for (const path of rollback.files)
+        expect(await (await (await restarted.open(`${prefix}shell:A`)).match(path))!.text()).toBe(
+          `A:${path}`,
+        );
+      expect(await (await c.request(`${base}assets/app.js`, 'live-A'))!.text()).toBe(
+        `A:${base}assets/app.js`,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test(`${base} retained rollback never acquires scratch ownership during failed reuse`, async () => {
+    const { caches, live, prefix, metadata } = await recoveryFixture(base);
+    await worker(base, 'B', caches, live).dispatch('install');
+    await worker(base, 'B', caches, live).dispatch('activate');
+    const rollback = worker(base, 'A', caches, live);
+    rollback.network.mockImplementationOnce(async () => {
+      expect(await metadata.match(`${base}__app_shell__/installing/A`)).toBeUndefined();
+      throw new Error('rollback interrupted');
+    });
+    await expect(rollback.dispatch('install')).rejects.toThrow('rollback interrupted');
+    const restarted = worker(base, 'C', await persistedRestart(caches), live);
+    await restarted.dispatch('install');
+    for (const path of rollback.files)
+      expect(
+        await (await (await restarted.caches.open(`${prefix}shell:A`)).match(path))!.text(),
+      ).toBe(`A:${path}`);
+  });
+
+  for (const evidence of [
+    'active',
+    'installed',
+    'assigned',
+    'pending',
+    'retired',
+    'unknown',
+    'missing-active',
+    'missing-installed',
+    'malformed-client',
+  ]) {
+    test(`${base} interrupted recovery protects ${evidence} evidence`, async () => {
+      const { caches, live, metadata, marker, shell, seed } = await recoveryFixture(base);
+      await seed();
+      if (evidence === 'active' || evidence === 'installed')
+        await metadata.put(`${base}__app_shell__/${evidence}`, new Response('B'));
+      if (evidence === 'assigned' || evidence === 'pending')
+        await metadata.put(
+          `${base}__app_shell__/client/absent-B`,
+          new Response('B', {
+            headers: evidence === 'pending' ? { 'X-App-Shell-Pending': '1' } : {},
+          }),
+        );
+      if (evidence === 'retired')
+        await metadata.put(`${base}__app_shell__/retired/B`, new Response('B'));
+      if (evidence === 'unknown') live.push({ id: 'unknown-suspended', url: `${origin}${base}` });
+      if (evidence === 'missing-active') await metadata.delete(`${base}__app_shell__/active`);
+      if (evidence === 'missing-installed') await metadata.delete(`${base}__app_shell__/installed`);
+      if (evidence === 'malformed-client')
+        await metadata.put(`${base}__app_shell__/client/broken`, new Response(''));
+      const restarted = await persistedRestart(caches);
+      await worker(base, 'C', restarted, live).dispatch('install');
+      expect(await restarted.keys()).toContain(shell);
+      // Completion evidence may remove only stale marker housekeeping.
+      if (!['active', 'installed', 'retired'].includes(evidence))
+        expect(
+          await (
+            await restarted.open(`my-goat-journey:${encodeURIComponent(base)}:clients`)
+          ).match(marker),
+        ).toBeDefined();
+    });
+  }
+
+  test(`${base} ambiguous same-version ownership rejects retry before opening or fetching`, async () => {
+    const { caches, live, metadata, shell, seed } = await recoveryFixture(base);
+    await seed();
+    await metadata.put(
+      `${base}__app_shell__/client/unobserved`,
+      new Response('B', { headers: { 'X-App-Shell-Pending': '1' } }),
+    );
+    const b = worker(base, 'B', caches, live);
+    const open = vi.spyOn(caches, 'open');
+    await expect(b.dispatch('install')).rejects.toThrow('ownership is unresolved');
+    expect(open.mock.calls.map(([name]) => name)).not.toContain(shell);
+    expect(b.network).not.toHaveBeenCalled();
+  });
+
+  test(`${base} ownership quota fails before an untracked shell mutation`, async () => {
+    const { caches, live, metadata, marker, shell } = await recoveryFixture(base);
+    const put = metadata.put.bind(metadata);
+    vi.spyOn(metadata, 'put').mockImplementation(async (request, response) => {
+      if (key(request) === key(marker))
+        throw new DOMException('intent quota', 'QuotaExceededError');
+      return put(request, response);
+    });
+    const b = worker(base, 'B', caches, live);
+    await expect(b.dispatch('install')).rejects.toThrow('intent quota');
+    expect(await caches.keys()).not.toContain(shell);
+    expect(b.network).not.toHaveBeenCalled();
+    expect(await (await metadata.match(`${base}__app_shell__/installed`))!.text()).toBe('A');
+  });
+
+  test(`${base} post-publication marker cleanup failure cannot reject or delete completed B`, async () => {
+    const { caches, live, metadata, marker, shell } = await recoveryFixture(base);
+    const remove = metadata.delete.bind(metadata);
+    const injection = vi.spyOn(metadata, 'delete').mockImplementation(async (request) => {
+      if (key(request) === key(marker)) throw new Error('marker delete failed');
+      return remove(request);
+    });
+    await worker(base, 'B', caches, live).dispatch('install');
+    expect(await (await metadata.match(`${base}__app_shell__/installed`))!.text()).toBe('B');
+    expect(await caches.keys()).toContain(shell);
+    expect(await metadata.match(marker)).toBeDefined();
+    // A later C can supersede B even if marker cleanup keeps failing. Durable
+    // retirement evidence must prevent mistaking successfully published B for scratch.
+    await worker(base, 'C', caches, live).dispatch('install');
+    expect(await metadata.match(`${base}__app_shell__/retired/B`)).toBeDefined();
+    injection.mockRestore();
+    const restarted = worker(base, 'D', await persistedRestart(caches), live);
+    await restarted.dispatch('install');
+    expect(await restarted.caches.keys()).toContain(shell);
+    expect(
+      await (
+        await restarted.caches.open(`my-goat-journey:${encodeURIComponent(base)}:clients`)
+      ).match(marker),
+    ).toBeUndefined();
+  });
+
+  for (const failure of ['cache-delete', 'marker-delete', 'snapshot', 'caught-cleanup']) {
+    test(`${base} interrupted recovery ${failure} retains retry evidence and is idempotent`, async () => {
+      const { caches, live, a, metadata, marker, shell, seed } = await recoveryFixture(base);
+      if (failure === 'caught-cleanup') {
+        const b = worker(base, 'B', caches, live);
+        b.network.mockRejectedValueOnce(new Error('transfer failed'));
+        vi.spyOn(caches, 'delete').mockRejectedValueOnce(new Error('deletion failed'));
+        await expect(b.dispatch('install')).rejects.toThrow('deletion failed');
+      } else {
+        await seed();
+        if (failure === 'cache-delete')
+          vi.spyOn(caches, 'delete').mockRejectedValueOnce(new Error('deletion failed'));
+        if (failure === 'marker-delete')
+          vi.spyOn(metadata, 'delete').mockRejectedValueOnce(new Error('cleanup interrupted'));
+        if (failure === 'snapshot')
+          vi.spyOn(metadata, 'keys').mockRejectedValueOnce(new Error('metadata unavailable'));
+        await a.request(`${base}icons/icon.png`, 'live-A');
+      }
+      expect(await metadata.match(marker)).toBeDefined();
+      expect((await caches.keys()).includes(shell)).toBe(failure !== 'marker-delete');
+      const restored = await persistedRestart(caches);
+      const freshA = worker(base, 'A', restored, live);
+      await freshA.request(`${base}icons/icon.png`, 'live-A');
+      await freshA.request(`${base}icons/icon.png`, 'live-A');
+      expect(await restored.keys()).not.toContain(shell);
+      expect(
+        await (
+          await restored.open(`my-goat-journey:${encodeURIComponent(base)}:clients`)
+        ).match(marker),
+      ).toBeUndefined();
+    });
+  }
+
+  test(`${base} recovery never sweeps unmarked, malformed, foreign or unrelated caches`, async () => {
+    const { caches, live, prefix, metadata, seed } = await recoveryFixture(base);
+    await seed();
+    const names = [
+      `${prefix}shell:unmarked`,
+      `${prefix}shell:mismatch`,
+      `${prefix}shell:bad`,
+      'unrelated-cache',
+      `my-goat-journey:${encodeURIComponent(base === '/' ? '/foreign/' : '/')}:shell:B`,
+    ];
+    for (const name of names) await (await caches.open(name)).put('/untouched', new Response(name));
+    await metadata.put(`${base}__app_shell__/installing/mismatch`, new Response('other'));
+    await metadata.put(`${base}__app_shell__/installing/bad`, new Response('../bad'));
+    await metadata.put(`/foreign/__app_shell__/installing/B`, new Response('B'));
+    const restarted = worker(base, 'C', await persistedRestart(caches), live);
+    await restarted.dispatch('install');
+    for (const name of names) {
+      expect(await restarted.caches.keys()).toContain(name);
+      expect(await (await (await restarted.caches.open(name)).match('/untouched'))!.text()).toBe(
+        name,
+      );
+    }
+    expect(await restarted.caches.keys()).not.toContain(`${prefix}shell:B`);
+  });
 }
 
 for (const base of [
@@ -1461,7 +2255,11 @@ for (const base of [
         new Response('missing', { status: key(request).endsWith('app.js') ? 404 : 200 }),
     );
     await expect(sw.dispatch('install')).rejects.toThrow();
-    expect(await sw.caches.keys()).toEqual(['unrelated-cache']);
+    // Ownership now requires a metadata cache before the first shell mutation.
+    // Failed transfer removes the owned shell/marker, not the metadata namespace.
+    const metadataName = `my-goat-journey:${encodeURIComponent(base)}:clients`;
+    expect(await sw.caches.keys()).toEqual(['unrelated-cache', metadataName]);
+    expect(await (await sw.caches.open(metadataName)).keys()).toEqual([]);
     expect(sw.skipWaiting).not.toHaveBeenCalled();
   });
   test(`${base} installs all shell files without automatic activation`, async () => {

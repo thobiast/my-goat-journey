@@ -334,6 +334,21 @@ installation or activation. In particular:
   and held/pending Web Locks, and record predecessor navigation recovery time;
   accelerated model clocks are not native-browser evidence. Do not shorten the
   production transfer budget only for browser tests.
+- Keep interrupted-installation ownership regressions at root/default/alternate
+  bases. Transfer only persisted caches into fresh worker/lock contexts at intent,
+  open, individual write, complete-transfer and post-publication boundaries; a
+  caught rejection or transfer timeout is not termination. Cover same-version
+  retry, retained rollback, publication/marker ordering, repeated/interrupted
+  deletion, quota/metadata failures and assigned/pending/ambiguous/foreign-cache
+  protection. Native compiled-browser cases must use real CacheStorage and fresh
+  workers/browser contexts. Label seeded persisted states separately from actual
+  worker termination, and preserve exact fictional records through fresh offline
+  reopening. Include an actual first-ever installing-worker stop with no incumbent,
+  then an ordinary retry of the **same compiled version**, complete exact bytes and
+  fresh offline entry. Model initial intent, partial writes, transfer completion,
+  verified-state transition, publication and interrupted deletion/marker cleanup;
+  retain negative quota/missing-metadata/active/waiting/assignment cases. Never
+  modify signed shell output to manufacture fixtures.
 - `tests/pwa/update-client.test.ts` covers pristine entry, genuine hidden→visible
   resume, interaction cancellation, exact-worker acknowledgement, the one-reload
   latch, denial/error/timeout unlock and absence of automatic retry loops.

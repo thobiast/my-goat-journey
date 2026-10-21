@@ -709,6 +709,34 @@ optional `checkStatus`). The controller exposes `start`, `check(manual?)`,
   may wait for cancellation/cleanup; uncancellable storage and scheduling are not
   universally time-bounded. Ordinary later checks can retry; no tight retry loop
   is introduced. See [atomic installation](pwa-reliability.md#atomic-verified-installation).
+- Newly owned shell installation durably writes an app/base-scoped
+  `installing/<version>` ownership marker before shell creation/mutation, under
+  the shared lifecycle Web Lock. Retained same-version rollback shells never
+  receive scratch ownership. Before new creation of an absent shell, remove stale
+  retirement evidence; an absent shell still named active/installed denies
+  recreation, rather than certifying new incomplete bytes with stale pointers.
+  Locked installation and active-worker cleanup retry
+  recovery without terminated-worker memory or leases. Only exact ownership
+  evidence plus readable active/installed/client metadata and no reachable or
+  previously completed version authorize deletion; all durable/pending assignments
+  and unknown clients remain conservative. Delete cache before marker. Publish
+  `installed` before best-effort marker removal, with predecessor retirement before
+  pointer replacement, so successful waiting/rollback shells cannot become scratch.
+  An unresolved same-version marker denies reuse. Fail required ownership writes
+  before shell mutation and retain retry evidence after deletion failure.
+- A clean first-install namespace records `X-App-Shell-Phase: initial` on its
+  ownership marker only with exact registration scope, no active/waiting worker,
+  empty app/base metadata, no other app/base caches and successful client enumeration.
+  Restart recovery requires that positive tag and the same exclusive namespace,
+  both pointers absent and no assignments/retirement or ambiguous clients/state.
+  The tag proves a new never-published incarnation, not controller-null for every
+  window; assignments and namespace evidence still block this exception.
+  After complete verified transfer, a required atomic marker replacement to phase
+  `verified` precedes publication, permanently revoking initial deletion authority.
+  Same-version retry deletes incomplete initial bytes before rebuilding, or retains
+  a durably verified shell and repeats all integrity downloads before publication.
+  Missing pointers alone, untagged older orphans and metadata/quota fences remain
+  conservative. See [interrupted recovery](pwa-reliability.md#interrupted-installation-recovery).
 - This subsystem never stores, clears or replaces domain facts.
 
 Injected clocks, failure hooks and native abort/quota interceptions are isolated
