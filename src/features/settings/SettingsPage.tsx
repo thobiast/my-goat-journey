@@ -6,6 +6,9 @@ import type { Dataset, Settings } from '../../domain/types';
 import type { Copy } from '../habits/GoalFields';
 import './settings.css';
 
+type StatusMessage = 'downloadStarted' | 'backupRestored';
+type ErrorMessage = 'fileTooLarge' | 'invalidBackup' | 'backupTooLarge' | 'saveError';
+
 interface SettingsPageProps {
   data: Dataset;
   copy: Copy;
@@ -39,8 +42,8 @@ export function SettingsPage({
   applyUpdate,
   updateBlocked = false,
 }: SettingsPageProps) {
-  const [status, setStatus] = useState('');
-  const [error, setError] = useState('');
+  const [status, setStatus] = useState<StatusMessage>();
+  const [error, setError] = useState<ErrorMessage>();
   const [exporting, setExporting] = useState(false);
   const [checking, setChecking] = useState(false);
   const [candidate, setCandidate] = useState<{
@@ -66,8 +69,8 @@ export function SettingsPage({
     ++validation.current;
     setChecking(false);
     setCandidate(undefined);
-    setStatus('');
-    setError('');
+    setStatus(undefined);
+    setError(undefined);
     edited();
   };
 
@@ -78,8 +81,8 @@ export function SettingsPage({
     const revision = data.revision;
     edited();
     setCandidate(undefined);
-    setStatus('');
-    setError('');
+    setStatus(undefined);
+    setError(undefined);
     setChecking(true);
     try {
       const parsed = await parseBackup(file);
@@ -87,9 +90,7 @@ export function SettingsPage({
     } catch (error) {
       if (token === validation.current)
         setError(
-          error instanceof BackupError && error.code === 'size'
-            ? copy.fileTooLarge
-            : copy.invalidBackup,
+          error instanceof BackupError && error.code === 'size' ? 'fileTooLarge' : 'invalidBackup',
         );
     } finally {
       if (token === validation.current) setChecking(false);
@@ -100,8 +101,8 @@ export function SettingsPage({
   async function exportBackup() {
     const finishOperation = beginOperation?.();
     blockUpdate?.(true);
-    setStatus('');
-    setError('');
+    setStatus(undefined);
+    setError(undefined);
     setExporting(true);
     try {
       const committed = await fresh();
@@ -116,12 +117,10 @@ export function SettingsPage({
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setStatus(copy.downloadStarted);
+      setStatus('downloadStarted');
     } catch (error) {
       setError(
-        error instanceof BackupError && error.code === 'size'
-          ? copy.backupTooLarge
-          : copy.saveError,
+        error instanceof BackupError && error.code === 'size' ? 'backupTooLarge' : 'saveError',
       );
     } finally {
       setExporting(false);
@@ -250,7 +249,7 @@ export function SettingsPage({
                 onClick={() =>
                   replace(candidate.dataset, candidate.revision, () => {
                     setCandidate(undefined);
-                    setStatus(copy.backupRestored);
+                    setStatus('backupRestored');
                   })
                 }
               >
@@ -305,9 +304,9 @@ export function SettingsPage({
           </div>
         )}
       </section>
-      {error && <p role="alert">{error}</p>}
+      {error && <p role="alert">{copy[error]}</p>}
       <p role="status" aria-live="polite" aria-atomic="true">
-        {status}
+        {status && copy[status]}
       </p>
     </div>
   );

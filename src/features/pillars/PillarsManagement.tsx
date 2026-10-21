@@ -119,7 +119,7 @@ function ManagementHabit({
             <ActionsDisclosure
               context={definition.goal}
               closeLabel={copy.closeActions}
-              label={copy.habitActions.replace('{goal}', definition.goal)}
+              label={copy.habitActions.replace('{goal}', () => definition.goal)}
               busy={busy}
               originKey={`more:${habit.id}`}
             >
@@ -274,7 +274,7 @@ export function PillarsManagement({
                 <ActionsDisclosure
                   context={name}
                   closeLabel={copy.closeActions}
-                  label={copy.pillarActions.replace('{pillar}', name)}
+                  label={copy.pillarActions.replace('{pillar}', () => name)}
                   busy={busy}
                   originKey={`pillar:${pillar.id}`}
                 >

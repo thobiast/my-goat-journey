@@ -480,6 +480,8 @@ replacement, with validation repeated inside the transaction.
   footer.
 - The Streaks action is labeled **View pillar streaks** and opens the pillar's
   streak/history view with its pillar name as the heading.
+- The history header retains pillar identity and real current/best streaks but
+  omits daily status/counts; each historical day retains its own status/counts.
 
 ### Action surfaces and child routes
 
@@ -488,6 +490,9 @@ replacement, with validation repeated inside the transaction.
 - Close, outside click and Escape restore trigger focus; command selection keeps
   destination focus. Visual-viewport and bottom-navigation-aware positioning
   handles enlarged/short layouts.
+- Native sheet cancel/close uses the same idempotent dismissal, synchronizing
+  expanded state and restoring prior document scroll-lock styles. Queued close
+  events from cleanup cannot dismiss a reopened surface.
 - Mobile action panels include a full wrapping goal/pillar context heading.
 - Dedicated Archived, lifecycle confirmations, pillar forms/removal and direct
   editors retain Pillars navigation, session expansion and independent
@@ -601,8 +606,14 @@ active habits, with scoped expandable Filters and a summary.
 - Only affected current goal/schedule values follow **Until then**. If a pillar-only
   draft on a revisited date advances a saved future definition, wording uses the
   command preview date rather than promising its former stored date.
+- Edit validation associates specific localized errors with the goal and weekday
+  controls and focuses the first invalid field in form order. Invalid submission
+  does not write; corrections update field errors without changing Every day semantics.
 - Conditional and credited-source move explanations use their separate
   domain-derived dates, not the definition boundary.
+- Goal and pillar-name interpolation treats user text literally, including dollar
+  replacement patterns, in visible text and accessible names; stored values and
+  React text escaping are unchanged.
 
 ### DiscardDialog
 
@@ -640,6 +651,12 @@ Settings groups actions into flat **Preferences**, **Backup & restore** and
 replacement/deletion confirmations with Cancel and focus restoration. Portable
 private backups, revision-bound atomic replacement, rollback on invalid/stale/
 failed operations and separately confirmed reset follow the contracts above.
+
+Feedback retains semantic message identifiers, translated with the current
+language during rendering. Language changes retain and translate existing
+alerts/statuses, including operations that finish after the change, without
+remounting Settings. Backup replacement remains subject to the existing revision
+checks.
 
 `src/pwa/update.ts` exports `createUpdateController(UpdateOptions)` and
 `UpdateSnapshot` (`available`, `applying`, `checking`, `supported`, `failed`,

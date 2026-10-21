@@ -10,13 +10,15 @@ export function PillarHeader({
   items,
   copy,
   streak,
+  showDailyStatus = true,
 }: {
   pillar: Pillar;
   items: AgendaItem[];
   copy: Copy;
   streak: StreakProgress;
+  showDailyStatus?: boolean;
 }) {
-  const summary = summarize(items, 'pillar');
+  const summary = showDailyStatus ? summarize(items, 'pillar') : undefined;
   return (
     <div className="pillar-header">
       <div className="pillar-title">
@@ -25,11 +27,13 @@ export function PillarHeader({
         </span>
         <h2>{pillarName(pillar, copy)}</h2>
       </div>
-      <p>
-        {copy[summary.status]}
-        {summary.required > 0 &&
-          ` · ${copy.requiredCount.replace('{done}', String(summary.requiredDone)).replace('{total}', String(summary.required))}`}
-      </p>
+      {summary && (
+        <p>
+          {copy[summary.status]}
+          {summary.required > 0 &&
+            ` · ${copy.requiredCount.replace('{done}', String(summary.requiredDone)).replace('{total}', String(summary.required))}`}
+        </p>
+      )}
       <p className="pillar-streak">
         {copy.streakCompact
           .replace('{current}', String(streak.current))

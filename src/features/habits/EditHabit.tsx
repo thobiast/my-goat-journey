@@ -46,7 +46,13 @@ export function EditHabit({
     pillarId: habit.memberships.at(-1)!.pillarId,
   });
   const [value, setValue] = useState<GoalInput>(initial);
-  const [invalid, setInvalid] = useState(false);
+  const [attempted, setAttempted] = useState(false);
+  const errors = attempted
+    ? {
+        goal: value.goal.trim() ? undefined : copy.onboardingGoalError,
+        weekdays: value.weekdays.length ? undefined : copy.onboardingDayError,
+      }
+    : undefined;
   const destinationAvailable = data.pillars.some((p) => p.id === value.pillarId && !p.removedOn);
   const applicable = habitState(habit, today).state !== 'archived';
   const preview =
@@ -75,8 +81,8 @@ export function EditHabit({
   const fill = (template: string) =>
     template
       .replace('{date}', displayDate(preview!.moveDate!, data.settings.language))
-      .replace('{source}', name(preview!.sourcePillarId))
-      .replace('{target}', name(preview!.targetPillarId));
+      .replace('{source}', () => name(preview!.sourcePillarId))
+      .replace('{target}', () => name(preview!.targetPillarId));
 
   const goalChanged = value.goal !== current.goal;
   const scheduleChanged = [0, 1, 2, 3, 4, 5, 6].some(
@@ -104,8 +110,13 @@ export function EditHabit({
       onSubmit={(event) => {
         event.preventDefault();
         if (!validGoal(value)) {
-          setInvalid(true);
-          document.getElementById(!value.goal.trim() ? 'goal' : 'pillar')?.focus();
+          setAttempted(true);
+          requestAnimationFrame(() => {
+            const first = !value.goal.trim()
+              ? document.getElementById('goal')
+              : document.querySelector<HTMLButtonElement>('.weekdays button');
+            first?.focus();
+          });
           return;
         }
         if (sameGoalInput(value, initial)) {
@@ -122,14 +133,13 @@ export function EditHabit({
         onChange={(next) => {
           edited();
           dirty(!sameGoalInput(next, initial));
-          setInvalid(false);
           setValue(next);
         }}
         copy={copy}
         busy={busy}
         pillars={data.pillars}
+        errors={errors}
       />
-      {invalid && <p role="alert">{copy.goalError}</p>}
       {preview && definitionChanged && effectiveDate && (
         <p className="habit-edit-note">
           {(conditionalDefinition ? copy.habitEditIfSaved : copy.habitEditScheduled).replace(

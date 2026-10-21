@@ -218,7 +218,9 @@ export function TodayPage({
                   {item.kind === 'required' && item.pillarParticipation === 'on-completion' && (
                     <div className="habit-today-status">
                       <p>{item.kind === 'required' ? copy.requiredToday : copy.optional}</p>
-                      <p>{copy.countsWhenDone.replace('{target}', pillarName(pillar, copy))}</p>
+                      <p>
+                        {copy.countsWhenDone.replace('{target}', () => pillarName(pillar, copy))}
+                      </p>
                     </div>
                   )}
                   {item.kind === 'optional' && (

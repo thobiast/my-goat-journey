@@ -172,6 +172,20 @@ export function ActionsDisclosure({
         close(false);
     }
 
+    function cancel(event: Event) {
+      event.preventDefault();
+      close(true);
+    }
+
+    function nativeClosed() {
+      // StrictMode cleanup or a rapid reopen can leave an earlier close event queued.
+      if (!node.open) close(true);
+    }
+
+    if (sheet) {
+      node.addEventListener('cancel', cancel);
+      node.addEventListener('close', nativeClosed);
+    }
     document.addEventListener('pointerdown', outside, true);
     document.addEventListener('keydown', keys, true);
     document.addEventListener('focusin', focusOutside);
@@ -186,6 +200,8 @@ export function ActionsDisclosure({
     return () => {
       closed = true;
       if (dismissActive === close) dismissActive = undefined;
+      node.removeEventListener('cancel', cancel);
+      node.removeEventListener('close', nativeClosed);
       document.removeEventListener('pointerdown', outside, true);
       document.removeEventListener('keydown', keys, true);
       document.removeEventListener('focusin', focusOutside);

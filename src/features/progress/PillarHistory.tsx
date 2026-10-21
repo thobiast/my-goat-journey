@@ -42,7 +42,13 @@ export function PillarHistory({
   return (
     <>
       <section className={`pillar ${pillar.defaultKey ?? 'custom'}`}>
-        <PillarHeader pillar={pillar} items={[]} copy={copy} streak={progress.pillars[pillar.id]} />
+        <PillarHeader
+          pillar={pillar}
+          items={[]}
+          copy={copy}
+          streak={progress.pillars[pillar.id]}
+          showDailyStatus={false}
+        />
       </section>
       <h2>{copy.history}</h2>
       {!days.length && <p>{copy.noRecords}</p>}
