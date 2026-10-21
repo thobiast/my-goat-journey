@@ -75,6 +75,33 @@ test('browser containers receive the same resolved prefix as Vite', () => {
   }
 });
 
+test.each(['dev', 'typecheck', 'e2e'])(
+  '%s shares the checkout label without changing user, network or named-volume ownership',
+  (command) => {
+    const f = wrapperFixture();
+    try {
+      const result = f.run(command);
+      expect(result.status).toBe(0);
+      const launches = result.calls.filter((args) => args[0] === 'run');
+      expect(launches.length).toBeGreaterThan(0);
+      for (const launch of launches) {
+        expect(launch).toContain(`${f.root}:/workspace:z`);
+        expect(launch).not.toContain(`${f.root}:/workspace:Z`);
+        expect(launch).toContain('--userns=keep-id');
+        expect(launch).toContain('--network');
+        expect(launch).toContain('my-goat-journey');
+        expect(launch).toContain('app=my-goat-journey');
+        expect(launch).toContain('my-goat-journey-deps:/workspace/node_modules:U');
+        if (!launch.includes('localhost/my-goat-journey-e2e:local')) {
+          expect(launch).toContain('my-goat-journey-cache:/npm-cache:U');
+        }
+      }
+    } finally {
+      rmSync(f.root, { recursive: true, force: true });
+    }
+  },
+);
+
 test('runtime refuses a prefix inconsistent with its compiled image before managing containers', () => {
   const f = wrapperFixture();
   try {

@@ -41,7 +41,7 @@ tool() {
     fi
 
     podman run --rm --userns=keep-id --network "$PROJECT" --label app="$PROJECT" \
-        -v "$ROOT:/workspace:Z" \
+        -v "$ROOT:/workspace:z" \
         -v "$PROJECT-deps:/workspace/node_modules:U" \
         -v "$PROJECT-cache:/npm-cache:U" \
         "$@"
@@ -164,7 +164,7 @@ case "${1:-help}" in
                 --label app="$PROJECT" --label "site.prefix=$SITE_PREFIX" \
                 -e "SITE_PREFIX=$SITE_PREFIX" --userns=keep-id \
                 --network "$PROJECT" -p "$BIND_ADDRESS:5173:5173" \
-                -v "$ROOT:/workspace:Z" \
+                -v "$ROOT:/workspace:z" \
                 -v "$PROJECT-deps:/workspace/node_modules:U" \
                 -v "$PROJECT-cache:/npm-cache:U" \
                 "$DEV"
@@ -207,7 +207,7 @@ case "${1:-help}" in
             --label app="$PROJECT" --shm-size=512m \
             -e "SITE_PREFIX=$SITE_PREFIX" \
             -e BASE_URL="${BASE_URL:-http://my-goat-journey-dev:5173}" \
-            -v "$ROOT:/workspace:Z" \
+            -v "$ROOT:/workspace:z" \
             -v "$PROJECT-deps:/workspace/node_modules:U" \
             "$E2E" npm run e2e -- "$@"
         ;;

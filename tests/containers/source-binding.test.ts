@@ -71,7 +71,7 @@ test('recreates a matching dev container when workspace binds a different checko
     expect(result.calls).toContain('stop my-goat-journey-dev');
     expect(result.calls).toContain('rm my-goat-journey-dev');
     expect(result.calls).toContain('run -d --name my-goat-journey-dev');
-    expect(result.calls).toContain(`${resolve('.')}:/workspace:Z`);
+    expect(result.calls).toContain(`${resolve('.')}:/workspace:z`);
     expect(result.calls).not.toContain('start my-goat-journey-dev');
     expect(result.calls).not.toMatch(/volume rm|prune|my-goat-journey-runtime/);
   } finally {

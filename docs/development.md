@@ -16,6 +16,12 @@ Run local Node/npm/Vite/TypeScript/Vitest/Playwright commands and browser librar
 
 The wrapper owns network `my-goat-journey`, dependency/cache volumes `my-goat-journey-deps` / `my-goat-journey-cache`, and named `my-goat-journey-dev` / `my-goat-journey-runtime` containers. Ownership labels prevent managing unrelated containers. Local development, browser-test and runtime images use the `:local` tag; their image names identify each responsibility. An empty source `node_modules` mount target does not mean dependencies are installed natively on the host.
 
+Development, tool and browser containers intentionally share the checkout bind.
+Use the shared SELinux relabel suffix `:z`, not private `:Z`, so a new container
+does not take checkout access away from a running development container on an
+enforcing host. Keep `--userns=keep-id` and named-volume `:U` ownership handling;
+neither replaces the checkout's shared SELinux label.
+
 The shared resource setup also treats only existence status 1 as absence: it
 creates a missing network or volume, but preserves operational existence errors
 and stops before creation or dependent work. Creation failures likewise prevent
@@ -232,6 +238,23 @@ dist/                  # generated, never committed
 The root `LICENSE` is the sole authoritative project license text. Development serves its exact bytes as plain text at the same derived app path (`app/LICENSE`), bypassing Vite’s import analysis without enabling a production worker. Vite derives `app/LICENSE` from it before generating final-byte worker integrity/version metadata; `app/third-party-notices.txt` retains the exact existing public notice text. Both legal texts participate in the precached shell and integrity/version checks, and the landing links to these same distributed files. No PWA file is appended or modified after hashing. Assembly compiles the PWA for the derived app base, then copies it beneath `app/` without modifying final-byte worker/version/integrity inputs. Validate exact app hashes before/after copying. Landing-only changes must leave app output/version unchanged if app inputs/base are unchanged. Reject unexpected/stale files, links and nonregular inputs; do not merge a new output into an arbitrary old `dist/`.
 
 The production runtime is non-root nginx (`101:101`) serving compiled assets without source/dependency mounts or Vite; `/health` is local-runtime-only. An image build alone is not proof of health or correct prefixed serving.
+
+Nginx emits relative `301` redirects for entries missing their trailing slash,
+keeping the browser on the requested external origin (including published port
+8088, rather than container port 8080). Check through the published host port:
+
+```sh
+curl -sS -D - -o /dev/null http://localhost:8088/my-goat-journey
+curl -sS -D - -o /dev/null http://localhost:8088/my-goat-journey/app
+curl -fsS -L --max-redirs 3 -o /dev/null -w '%{url_effective}\n' \
+  http://localhost:8088/my-goat-journey/app
+```
+
+Expect `Location: /my-goat-journey/` and
+`Location: /my-goat-journey/app/`, then a final URL on port 8088. Repeat with the
+resolved paths for alternate prefixes; a root-site build has `/` and `/app/`,
+with `/app` redirecting to `/app/`. Keep alternate runtime fixtures disposable;
+requests to port 8080 alone do not verify published-port redirect behavior.
 
 GitHub Pages serves the same shared static artifact, assembled locally in Podman or in GitHub-hosted CI. See the [README](../README.md#hosting-and-ci) for the public URLs and deployment instructions. Nginx headers, health checks and fallback behavior are specific to local production. When changing deployment configuration, verify hosted responses separately. Navigation is state-based; the supported entry points are the landing and app URLs.
 
@@ -534,7 +557,7 @@ podman run --rm --userns=keep-id --network my-goat-journey \
   --label app=my-goat-journey --shm-size=512m \
   -e PUBLICATION_CAPTURE=1 -e SITE_PREFIX=/my-goat-journey/ \
   -e BASE_URL=http://my-goat-journey-runtime:8080/my-goat-journey/app/ \
-  -v "$PWD:/workspace:Z" \
+  -v "$PWD:/workspace:z" \
   -v my-goat-journey-deps:/workspace/node_modules:U \
   localhost/my-goat-journey-e2e:local npm run e2e -- \
   e2e/publication-captures.spec.ts --grep 'capture current Today'

@@ -23,6 +23,29 @@ test('runtime rendering uses the shared prefix for landing, app, assets and app-
   }
   expect(readFileSync('Containerfile', 'utf8')).toContain('node scripts/render-nginx.mjs');
 });
+test.each(['/my-goat-journey/', '/team/notes/', '/'])(
+  'runtime keeps slash redirects relative at site prefix %s',
+  async (SITE_PREFIX) => {
+    const { renderNginx } = await import('../../scripts/render-nginx.mjs');
+    const site = resolveSite({ SITE_PREFIX });
+    const config = renderNginx(site);
+    expect(config).toMatch(/server \{\s*listen 8080;\s*absolute_redirect off;/);
+    expect(config).toContain(
+      `location = ${site.appBase.slice(0, -1)} { return 301 ${site.appBase}; }`,
+    );
+    if (site.prefix === '/') {
+      expect(config).not.toMatch(/location =\s+\{/);
+      expect(config).not.toContain('location / { return 404; }');
+    } else {
+      expect(config).toContain(
+        `location = ${site.prefix.slice(0, -1)} { return 301 ${site.prefix}; }`,
+      );
+    }
+    expect(config).not.toMatch(/https?:\/\/|localhost|8088/);
+    expect(config).not.toContain('__');
+  },
+);
+
 test('runtime does not cache HTML, worker or manifest and caches hashed assets immutably', () => {
   expect(nginx).toMatch(/map \$uri \$app_cache_control/);
   expect(nginx).toContain('default "no-cache";');

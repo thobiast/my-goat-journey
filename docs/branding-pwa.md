@@ -88,7 +88,7 @@ Prepare [the development environment](development.md) first. From the checkout d
 ```sh
 podman run --rm --userns=keep-id --network my-goat-journey \
   --label app=my-goat-journey --shm-size=512m \
-  -v "$PWD:/workspace:Z" \
+  -v "$PWD:/workspace:z" \
   -v my-goat-journey-deps:/workspace/node_modules:U \
   localhost/my-goat-journey-e2e:local node scripts/generate-brand-icons.mjs
 ```
