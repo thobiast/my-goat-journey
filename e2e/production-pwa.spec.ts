@@ -1,6 +1,7 @@
 import { test, expect, chromium, type Page } from '@playwright/test';
 import { createServer, request as upstreamRequest, type Server } from 'node:http';
-import { readFile, mkdir, mkdtemp } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, mkdtemp } from 'node:fs/promises';
+import { NativeTransferStall } from './support/native-transfer-stall';
 import { spawn } from 'node:child_process';
 import { resolveSite } from '../config/site.mjs';
 import type { Dataset } from '../src/domain/types';
@@ -48,6 +49,7 @@ let blockedAssetRequests = 0;
 let instrumentWorkers = false;
 let holdRollbackCache = false;
 let pendingAssignmentRace = false;
+let transferStall: NativeTransferStall | undefined;
 let proxy: Server;
 
 test.beforeAll(async () => {
@@ -82,7 +84,14 @@ test.beforeAll(async () => {
         headers: { ...incoming.headers, host: `${target}:8080` },
       },
       (response) => {
-        if (instrumentWorkers && incoming.url?.split('?')[0] === `${appBase}sw.js`) {
+        if (
+          transferStall &&
+          target === next &&
+          incoming.headers['sec-fetch-dest'] === 'empty' &&
+          incoming.url?.split('?')[0] === `${appBase}site-v1.webmanifest`
+        ) {
+          transferStall.hold(response, outgoing);
+        } else if (instrumentWorkers && incoming.url?.split('?')[0] === `${appBase}sw.js`) {
           const chunks: Buffer[] = [];
           response.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
           response.on('end', () => {
@@ -140,6 +149,10 @@ test.beforeEach(async ({}, testInfo) => {
   holdRollbackCache = false;
   pendingAssignmentRace = false;
   unknownPeerRequests = 0;
+  transferStall = undefined;
+});
+test.afterEach(() => {
+  transferStall?.dispose();
 });
 
 const update = (page: Page, language: 'en' | 'pt' = 'en') =>
@@ -1082,6 +1095,219 @@ for (const quota of ['all', 'active'] as const)
       body: JSON.stringify({ quota, armed, guarded, a, b, beforeReload, afterReload }, null, 2),
       contentType: 'application/json',
     });
+  });
+
+for (const phase of ['headers', 'body'] as const)
+  test(`native stalled update ${phase} cancels transfer and unblocks exact old navigation`, async ({
+    page,
+    context,
+    browser,
+  }, testInfo) => {
+    await setup(page);
+    await page.getByRole('checkbox').first().click();
+    await expect(page.getByRole('checkbox').first()).toBeChecked();
+    await nav(page, 'Journey').click();
+    await expect(page.getByText('10 XP', { exact: true })).toBeVisible();
+    // Ensure this document's native register/startup check has settled on A
+    // before separately initiating the failing B installation.
+    await nav(page, 'Settings').click();
+    const check = page.getByRole('button', { name: en.updateCheck, exact: true });
+    await expect(check).toBeEnabled();
+    await check.click();
+    await expect(page.locator('.settings-update').getByRole('status')).toHaveText(en.updateCurrent);
+    const saved = await readDataset(page);
+    const identity = await documentIdentity(page);
+    const a = (await pointer(page, 'active'))!;
+    const aKey = `${cachePrefix}shell:${a}`;
+    const aShell = await shellSnapshot(page, aKey);
+    const exactHtml = await page.evaluate(
+      async ({ key, path }) =>
+        Array.from(
+          new Uint8Array(await (await (await caches.open(key)).match(path))!.arrayBuffer()),
+        ),
+      { key: aKey, path: `${appBase}index.html` },
+    );
+    const assignments = () =>
+      page.evaluate(
+        async ({ metadataCache, appBase }) => {
+          const cache = await caches.open(metadataCache);
+          const rows = await Promise.all(
+            (await cache.keys())
+              .filter((request) =>
+                new URL(request.url).pathname.startsWith(`${appBase}__app_shell__/client/`),
+              )
+              .map(async (request) => [request.url, await (await cache.match(request))!.text()]),
+          );
+          return Object.fromEntries(rows);
+        },
+        { metadataCache, appBase },
+      );
+    const beforeAssignments = await assignments();
+    expect(Object.values(beforeAssignments)).toContain(a);
+    const stall = new NativeTransferStall(phase);
+    transferStall = stall;
+    target = next;
+    const compiled = await (await context.request.get(`${origin}/sw.js`)).text();
+    const b = (JSON.parse(compiled.match(/const CONFIG = (.+);/)![1]) as { version: string })
+      .version;
+    expect(b).not.toBe(a);
+    const bKey = `${cachePrefix}shell:${b}`;
+    const navigation = await context.newPage();
+    let navigationAt: number | undefined;
+    let recoveredAt: number | undefined;
+    let partialFiles: string[] = [];
+    let nativeQueue: unknown;
+    const evidenceState: Record<string, unknown> = { phase, a, b, browser: browser.version() };
+    try {
+      await page.evaluate(async () => {
+        const registration = (await navigator.serviceWorker.getRegistration())!;
+        const state = window as typeof window & { stalledInstallState?: string };
+        registration.addEventListener(
+          'updatefound',
+          () => {
+            const worker = registration.installing!;
+            state.stalledInstallState = worker.state;
+            worker.addEventListener('statechange', () => {
+              state.stalledInstallState = worker.state;
+            });
+          },
+          { once: true },
+        );
+        // Chromium may keep update() pending until installation settles.
+        // Observe updatefound/statechange independently so a stalled transfer is testable.
+        void registration.update().catch(() => {});
+      });
+      await expect.poll(() => stall.startedAt).toBeTruthy();
+      // New A documents register automatically. Keep their subsequent update check
+      // on A; only the already in-flight B response remains stalled at this socket.
+      target = first;
+      expect(stall.cancelledAt).toBeUndefined();
+      partialFiles = await page.evaluate(
+        async (key) => (await (await caches.open(key)).keys()).map((request) => request.url),
+        bKey,
+      );
+      expect(partialFiles.length).toBeGreaterThan(0);
+      expect(partialFiles).not.toContain(`${requestOrigin}${appBase}site-v1.webmanifest`);
+      nativeQueue = await page.evaluate(() => navigator.locks.query());
+      expect(
+        (nativeQueue as { held?: { name: string }[] }).held?.some(
+          (lock) => lock.name === shellLifecycleLock,
+        ),
+      ).toBe(true);
+      navigationAt = Date.now();
+      // Attach rejection immediately: RED deliberately keeps this real navigation blocked.
+      const result = navigation.goto(`${origin}/?stalled-${phase}`).then(
+        async (response) => {
+          recoveredAt = Date.now();
+          return { bytes: await response!.body() };
+        },
+        (error: Error) => ({ error: error.message }),
+      );
+      await expect
+        .poll(async () =>
+          page.evaluate(
+            async (name) =>
+              (await navigator.locks.query()).pending?.some((lock) => lock.name === name),
+            shellLifecycleLock,
+          ),
+        )
+        .toBe(true);
+      expect(recoveredAt).toBeUndefined();
+      evidenceState.queueWhileStalled = await page.evaluate(() => navigator.locks.query());
+      // Real production 12s budget; bounded by the existing 90s case budget, never accelerated.
+      await expect.poll(() => stall.cancelledAt, { timeout: 18_000 }).toBeTruthy();
+      const recovered = await result;
+      expect(recovered).not.toHaveProperty('error');
+      expect('bytes' in recovered ? recovered.bytes : undefined).toEqual(Buffer.from(exactHtml));
+      expect(recoveredAt! - navigationAt).toBeLessThan(18_000);
+      await expect(navigation.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+      await controlled(navigation);
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => (window as typeof window & { stalledInstallState?: string }).stalledInstallState,
+          ),
+        )
+        .toBe('redundant');
+      expect(await page.evaluate((key) => caches.has(key), bKey)).toBe(false);
+      expect(await pointer(page, 'installed')).toBe(a);
+      expect(await pointer(page, 'active')).toBe(a);
+      expect(await shellSnapshot(page, aKey)).toEqual(aShell);
+      expect(await assignments()).toMatchObject(beforeAssignments);
+      expect(await readDataset(page)).toEqual(saved);
+      expect(await readDataset(navigation)).toEqual(saved);
+      await unchangedDocument(page, identity);
+      stall.release();
+      transferStall = undefined;
+      await navigation.close();
+      networkAvailable = false;
+      await context.setOffline(true);
+      const offlineA = await context.newPage();
+      const offlineResponse = await offlineA.goto(`${origin}/`);
+      expect(await offlineResponse!.body()).toEqual(Buffer.from(exactHtml));
+      await applied(offlineA, a);
+      expect(await readDataset(offlineA)).toEqual(saved);
+      for (const name of ['Pillars', 'Journey', 'Progress', 'Settings', 'Today']) {
+        await nav(offlineA, name).click();
+        await noOverflow(offlineA);
+      }
+      await expect(offlineA.getByRole('checkbox').first()).toBeChecked();
+      await offlineA.screenshot({
+        path: `${evidence}/screenshots/stalled-${phase}-offline-A-today-360.png`,
+        fullPage: true,
+      });
+      expect(await readDataset(offlineA)).toEqual(saved);
+      expect(await offlineA.evaluate((key) => caches.has(key), bKey)).toBe(false);
+      await offlineA.close();
+      await context.setOffline(false);
+      networkAvailable = true;
+      const c = await switchBuild(page, third);
+      await acceptSettings(page, c);
+      expect(await readDataset(page)).toEqual(saved);
+      // A later full successful install is an asynchronous barrier against late B writes.
+      expect(await page.evaluate((key) => caches.has(key), bKey)).toBe(false);
+      expect(await pointer(page, 'installed')).toBe(c);
+      evidenceState.c = c;
+      await page.close();
+      networkAvailable = false;
+      await context.setOffline(true);
+      const reopened = await context.newPage();
+      await reopened.goto(`${origin}/`);
+      await applied(reopened, c);
+      expect(await readDataset(reopened)).toEqual(saved);
+      await expect(reopened.getByRole('checkbox').first()).toBeChecked();
+      for (const name of ['Pillars', 'Journey', 'Progress', 'Settings', 'Today']) {
+        await nav(reopened, name).click();
+        await noOverflow(reopened);
+      }
+      await reopened.screenshot({
+        path: `${evidence}/screenshots/stalled-${phase}-offline-today-360.png`,
+        fullPage: true,
+      });
+      await nav(reopened, 'Journey').click();
+      await expect(reopened.getByText('10 XP', { exact: true })).toBeVisible();
+      await reopened.screenshot({
+        path: `${evidence}/screenshots/stalled-${phase}-offline-journey-360.png`,
+        fullPage: true,
+      });
+      expect(await readDataset(reopened)).toEqual(saved);
+      evidenceState.complete = true;
+    } finally {
+      Object.assign(evidenceState, {
+        transfer: stall.snapshot(),
+        navigationAt,
+        recoveredAt,
+        recoveryMs: recoveredAt && navigationAt ? recoveredAt - navigationAt : undefined,
+        partialFiles,
+        initialNativeLocks: nativeQueue,
+      });
+      const body = JSON.stringify(evidenceState, null, 2);
+      await writeFile(`${evidence}/stalled-${phase}.json`, body);
+      await testInfo.attach(`native-stalled-${phase}`, { body, contentType: 'application/json' });
+      transferStall = undefined;
+      stall.dispose();
+      await navigation.close().catch(() => {});
+    }
   });
 
 test('failed/interrupted C candidate leaves completed B available and A usable offline', async ({

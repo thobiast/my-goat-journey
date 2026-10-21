@@ -137,6 +137,34 @@ verified responses nor delete a live document's shell on failure. Installation
 bookkeeping failure preserves the previous successfully completed candidate and
 old working clients.
 
+`INSTALL_TRANSFER_BUDGET_MS` gives the entire serial transfer phase **12,000 ms**,
+starting after the destination cache opens, not a fresh allowance per file. It
+covers response headers, response-body consumption (also for retained rollback
+responses), and the awaited shell cache writes. This is an availability policy:
+a slow update is less important than reopening the verified predecessor. Twelve
+seconds leaves nominal headroom under the update controller's existing 15-second
+feedback timeout without extending that timeout; it is not a universal download
+speed requirement or an end-to-end installation deadline.
+
+On expiry the worker aborts the shared fetch signal. Each serial fetch/body/cache
+operation must settle before owned partial-cache deletion, and deletion must settle
+before releasing lifecycle coordination. Abort checks after awaited operations
+prevent a late response or storage completion from continuing to another write or
+publishing the cancelled candidate. No abandoned background writer is raced against
+lock release. The transfer timer is cleared on success and failure, before metadata
+publication; only a complete, verified transfer can reach publication. A failed
+candidate leaves active/installed pointers and document assignments intact, and
+never deletes a retained same-version shell.
+
+New navigations can still wait behind installation until cancellation settles and
+coordinated cleanup completes. Browser scheduling, uncancellable CacheStorage
+operations and metadata publication/cleanup have no universal wall-clock bound;
+the transfer budget does not promise immediate navigation or a strict 12-second
+recovery bound. Existing verified documents retain their shell. Installation failure
+uses ordinary later browser/update checks (including Settings or a later online
+entry) for retry; the worker adds no immediate or tight retry loop. The controller's
+timeout alone does not cancel a worker installation.
+
 Names are app/base-scoped: `my-goat-journey:<encoded-base>:shell:<version>` and the
 matching `clients` metadata cache. Metadata contains document/version assignments,
 not diary facts. No operation clears IndexedDB, unrelated caches, localStorage or

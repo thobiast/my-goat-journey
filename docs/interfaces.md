@@ -701,6 +701,14 @@ optional `checkStatus`). The controller exposes `start`, `check(manual?)`,
   Web Lock guard installation/publication and cleanup. Metadata failure retains
   verified files with fail-closed/reopen limits defined in
   [PWA reliability](pwa-reliability.md).
+- Worker installation has one 12,000 ms total transfer budget, including headers,
+  body consumption and awaited shell writes, independent of the controller's
+  15,000 ms feedback timeout. The worker aborts transfers, awaits in-flight work
+  and owned-cache cleanup under the lifecycle lock, then rejects without candidate
+  publication. A retained rollback shell is not deleted or overwritten. Navigation
+  may wait for cancellation/cleanup; uncancellable storage and scheduling are not
+  universally time-bounded. Ordinary later checks can retry; no tight retry loop
+  is introduced. See [atomic installation](pwa-reliability.md#atomic-verified-installation).
 - This subsystem never stores, clears or replaces domain facts.
 
 Injected clocks, failure hooks and native abort/quota interceptions are isolated

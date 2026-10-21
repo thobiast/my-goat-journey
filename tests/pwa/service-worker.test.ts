@@ -11,7 +11,16 @@ const key = (value: Request | string) =>
 class MemoryCache {
   entries = new Map<string, Response>();
   async put(request: Request | string, response: Response) {
-    this.entries.set(key(request), response.clone());
+    // Native Cache.put settles only after consuming the response body.
+    const bytes = await response.arrayBuffer();
+    this.entries.set(
+      key(request),
+      new Response(bytes, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      }),
+    );
   }
   async match(request: Request | string) {
     return this.entries.get(key(request))?.clone();
@@ -116,6 +125,9 @@ function worker(
       Request,
       Response,
       URL,
+      AbortController,
+      setTimeout,
+      clearTimeout,
       console,
     },
   );
@@ -146,7 +158,282 @@ function worker(
   return { base, files, caches, live, network, skipWaiting, claim, matchAll, dispatch, request };
 }
 
-for (const base of ['/', '/my-goat-journey/']) {
+for (const base of [
+  '/',
+  '/my-goat-journey/',
+  '/app/',
+  '/my-goat-journey/app/',
+  '/alternate/app/',
+]) {
+  test(`${base} stalled update headers are cancelled before old navigation resumes`, async () => {
+    vi.useFakeTimers();
+    const late = barrier<Response>();
+    let installing: Promise<unknown> | undefined;
+    try {
+      const caches = new MemoryCaches();
+      const live: Client[] = [];
+      const a = worker(base, 'A', caches, live);
+      await a.dispatch('install');
+      await a.dispatch('activate');
+      await a.request(base, '', 'existing-A', true);
+      live.push({ id: 'existing-A', url: `${origin}${base}` });
+      await a.request(`${base}assets/app.js`, 'existing-A');
+      const prefix = `my-goat-journey:${encodeURIComponent(base)}:`;
+      const metadata = await caches.open(`${prefix}clients`);
+      const assignment = await (await metadata.match(
+        `${base}__app_shell__/client/existing-A`,
+      ))!.text();
+      const b = worker(base, 'B', caches, live);
+      const stalled = barrier();
+      let signal!: AbortSignal;
+      b.network.mockImplementationOnce(async () => new Response(`B:${base}index.html`));
+      b.network.mockImplementationOnce(async (request) => {
+        signal = (request as Request).signal;
+        stalled.resolve();
+        return new Promise<Response>((resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+          void late.promise.then(resolve);
+        });
+      });
+      installing = b.dispatch('install');
+      const outcome = installing.then(
+        () => 'published',
+        () => 'cancelled',
+      );
+      await stalled.promise;
+      const partial = await caches.open(`${prefix}shell:B`);
+      expect((await partial.keys()).length).toBe(1);
+      const latePut = vi.spyOn(partial, 'put');
+      let navigated = false;
+      const navigation = a.request(base, '', 'fresh-A', true).then((response) => {
+        navigated = true;
+        return response;
+      });
+      await caches.locks.blocked.promise;
+      expect(navigated).toBe(false);
+      expect(
+        await (await (await caches.open(`${prefix}shell:A`)).match(`${base}index.html`))!.text(),
+      ).toBe(`A:${base}index.html`);
+      await vi.advanceTimersByTimeAsync(11_999);
+      expect(signal.aborted).toBe(false);
+      expect(navigated).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(signal.aborted).toBe(true);
+      expect(await outcome).toBe('cancelled');
+      expect(await (await navigation)!.text()).toBe(`A:${base}index.html`);
+      expect(await caches.keys()).not.toContain(`${prefix}shell:B`);
+      expect(await (await metadata.match(`${base}__app_shell__/installed`))!.text()).toBe('A');
+      expect(await (await metadata.match(`${base}__app_shell__/active`))!.text()).toBe('A');
+      expect(await (await metadata.match(`${base}__app_shell__/client/existing-A`))!.text()).toBe(
+        assignment,
+      );
+      late.resolve(new Response('late B response'));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(latePut).not.toHaveBeenCalled();
+      // Also inspect the detached handle: absence of the name alone would hide
+      // a writer still mutating the deleted candidate after lock release.
+      expect((await partial.keys()).length).toBe(1);
+      expect(await caches.keys()).not.toContain(`${prefix}shell:B`);
+      expect(await (await metadata.match(`${base}__app_shell__/installed`))!.text()).toBe('A');
+      const c = worker(base, 'C', caches, live);
+      await c.dispatch('install');
+      expect(await (await metadata.match(`${base}__app_shell__/installed`))!.text()).toBe('C');
+      for (const path of a.files)
+        expect(await (await (await caches.open(`${prefix}shell:A`)).match(path))!.text()).toBe(
+          `A:${path}`,
+        );
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      late.resolve(new Response('released diagnostic stall'));
+      await installing?.catch(() => {});
+      vi.useRealTimers();
+    }
+  });
+  for (const retained of [false, true]) {
+    test(`${base} stalled body uses the remaining total budget (${retained ? 'retained rollback' : 'new candidate'})`, async () => {
+      vi.useFakeTimers();
+      try {
+        const caches = new MemoryCaches();
+        const live: Client[] = [];
+        const prefix = `my-goat-journey:${encodeURIComponent(base)}:`;
+        const a = worker(base, 'A', caches, live);
+        await a.dispatch('install');
+        await a.dispatch('activate');
+        await a.request(base, '', 'live-A', true);
+        live.push({ id: 'live-A', url: `${origin}${base}` });
+        await a.request(`${base}assets/app.js`, 'live-A');
+        if (retained) {
+          const b = worker(base, 'B', caches, live);
+          await b.dispatch('install');
+          await b.dispatch('activate');
+        }
+        const metadata = await caches.open(`${prefix}clients`);
+        const version = retained ? 'A' : 'B';
+        const previous = retained ? 'B' : 'A';
+        const candidate = worker(base, version, caches, live);
+        const firstHeaders = barrier();
+        const firstResponse = barrier<Response>();
+        const reading = barrier();
+        let signal!: AbortSignal;
+        let body!: ReadableStreamDefaultController<Uint8Array>;
+        candidate.network.mockImplementationOnce(() => {
+          firstHeaders.resolve();
+          return firstResponse.promise;
+        });
+        candidate.network.mockImplementationOnce(async (request) => {
+          signal = (request as Request).signal;
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                body = controller;
+                controller.enqueue(new TextEncoder().encode('incomplete body'));
+                signal.addEventListener('abort', () => controller.error(signal.reason), {
+                  once: true,
+                });
+              },
+              pull() {
+                reading.resolve();
+              },
+            }),
+          );
+        });
+        const installing = candidate.dispatch('install');
+        const rejected = expect(installing).rejects.toThrow('App-shell transfer budget exceeded');
+        await firstHeaders.promise;
+        await vi.advanceTimersByTimeAsync(4_000);
+        firstResponse.resolve(new Response(`${version}:${base}index.html`));
+        await reading.promise;
+        let navigated = false;
+        const navigation = a.request(base, '', 'fresh-A', true).then((response) => {
+          navigated = true;
+          return response;
+        });
+        await caches.locks.blocked.promise;
+        await vi.advanceTimersByTimeAsync(7_999);
+        expect(signal.aborted).toBe(false);
+        expect(navigated).toBe(false);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(signal.aborted).toBe(true);
+        await rejected;
+        expect(await (await navigation)!.text()).toBe(`A:${base}index.html`);
+        expect(() => body.enqueue(new Uint8Array([1]))).toThrow();
+        expect(await (await metadata.match(`${base}__app_shell__/installed`))!.text()).toBe(
+          previous,
+        );
+        expect(await (await metadata.match(`${base}__app_shell__/active`))!.text()).toBe(previous);
+        expect(await (await metadata.match(`${base}__app_shell__/client/live-A`))!.text()).toBe(
+          'A',
+        );
+        if (!retained) expect(await caches.keys()).not.toContain(`${prefix}shell:B`);
+        for (const path of a.files)
+          expect(await (await (await caches.open(`${prefix}shell:A`)).match(path))!.text()).toBe(
+            `A:${path}`,
+          );
+        const c = worker(base, 'C', caches, live);
+        await c.dispatch('install');
+        expect(await (await metadata.match(`${base}__app_shell__/installed`))!.text()).toBe('C');
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  }
+  test(`${base} cancellation awaits an in-flight cache write and owned cleanup before lock release`, async () => {
+    vi.useFakeTimers();
+    const finishWrite = barrier();
+    const finishDelete = barrier();
+    try {
+      const caches = new MemoryCaches();
+      const a = worker(base, 'A', caches);
+      await a.dispatch('install');
+      await a.dispatch('activate');
+      const b = worker(base, 'B', caches);
+      const prefix = `my-goat-journey:${encodeURIComponent(base)}:`;
+      const cache = await caches.open(`${prefix}shell:B`);
+      // Simulate an uncancellable native storage commit already consuming bytes.
+      // It must settle before deletion; a race that releases the lock is unsafe.
+      const putting = barrier();
+      const put = cache.put.bind(cache);
+      vi.spyOn(cache, 'put').mockImplementationOnce(async (request, response) => {
+        await put(request, response);
+        putting.resolve();
+        await finishWrite.promise;
+      });
+      // The destination was created for this test hook, not a retained rollback.
+      const keys = caches.keys.bind(caches);
+      vi.spyOn(caches, 'keys').mockImplementationOnce(async () =>
+        (await keys()).filter((name) => name !== `${prefix}shell:B`),
+      );
+      const deleting = barrier();
+      const remove = caches.delete.bind(caches);
+      vi.spyOn(caches, 'delete').mockImplementation(async (name) => {
+        if (name === `${prefix}shell:B`) {
+          deleting.resolve();
+          await finishDelete.promise;
+        }
+        return remove(name);
+      });
+      const installing = b.dispatch('install');
+      const rejected = expect(installing).rejects.toThrow('App-shell transfer budget exceeded');
+      await putting.promise;
+      let navigated = false;
+      const navigation = a.request(base, '', 'fresh-A', true).then((response) => {
+        navigated = true;
+        return response;
+      });
+      await caches.locks.blocked.promise;
+      await vi.advanceTimersByTimeAsync(12_000);
+      expect(navigated).toBe(false);
+      expect(caches.delete).not.toHaveBeenCalled();
+      finishWrite.resolve();
+      await deleting.promise;
+      expect(navigated).toBe(false);
+      finishDelete.resolve();
+      await rejected;
+      expect(await (await navigation)!.text()).toBe(`A:${base}index.html`);
+      expect(await caches.keys()).not.toContain(`${prefix}shell:B`);
+      expect(b.network).toHaveBeenCalledTimes(1);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      finishWrite.resolve();
+      finishDelete.resolve();
+      vi.useRealTimers();
+    }
+  });
+  test(`${base} complete transfers within the total budget publish and clear the deadline`, async () => {
+    vi.useFakeTimers();
+    try {
+      const a = worker(base);
+      const fetching = barrier();
+      const finish = barrier<Response>();
+      a.network.mockImplementationOnce(() => {
+        fetching.resolve();
+        return finish.promise;
+      });
+      const installing = a.dispatch('install');
+      await fetching.promise;
+      await vi.advanceTimersByTimeAsync(11_999);
+      finish.resolve(new Response(`A:${base}index.html`));
+      await installing;
+      expect(vi.getTimerCount()).toBe(0);
+      const metadata = await a.caches.open(`my-goat-journey:${encodeURIComponent(base)}:clients`);
+      expect(await (await metadata.match(`${base}__app_shell__/installed`))!.text()).toBe('A');
+      const signal = (a.network.mock.calls[0][0] as Request).signal;
+      await vi.advanceTimersByTimeAsync(12_000);
+      expect(signal.aborted).toBe(false);
+      await a.dispatch('activate');
+      a.network.mockRejectedValue(new Error('offline'));
+      expect(await (await a.request(base, '', 'offline', true))!.text()).toBe(
+        `A:${base}index.html`,
+      );
+      for (const path of a.files)
+        expect(
+          await (await a.request(path, 'offline', '', path.endsWith('index.html')))!.text(),
+        ).toBe(`A:${path}`);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   test(`${base} retained rollback survives last A closing and B cleanup before publication`, async () => {
     const caches = new MemoryCaches();
     const live: Client[] = [];

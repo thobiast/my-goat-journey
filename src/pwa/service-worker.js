@@ -207,6 +207,36 @@ self.addEventListener('fetch', event => {
   if (!navigation && !index) event.waitUntil(response.then(() => cleanup()).catch(() => {}));
 });
 
+// One budget for the serial transfer phase, including response bodies and cache
+// writes. Shorter than the controller's 15s feedback timeout, not derived from it:
+// only this worker can cancel its installation's network/body work.
+const INSTALL_TRANSFER_BUDGET_MS = 12_000;
+async function transferShell(cache) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error('App-shell transfer budget exceeded')), INSTALL_TRANSFER_BUDGET_MS);
+  try {
+    for (const path of CONFIG.files) {
+      controller.signal.throwIfAborted();
+      const request = new Request(absolute(path), { cache: 'reload', integrity: CONFIG.integrity[path], signal: controller.signal });
+      const response = await fetch(request);
+      controller.signal.throwIfAborted();
+      if (!response.ok || response.redirected) throw new Error(`App-shell fetch failed: ${path}`);
+      const existing = await cache.match(request);
+      controller.signal.throwIfAborted();
+      // put consumes the body; retained rollbacks must consume it too, without
+      // overwriting verified bytes. Abort errors settle before failure cleanup.
+      if (existing) await response.arrayBuffer();
+      else await cache.put(request, response);
+      controller.signal.throwIfAborted();
+    }
+  } catch (error) {
+    controller.abort(error);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 self.addEventListener('install', event => {
   event.waitUntil(withShellLock(async () => {
     // A same-version rollback may reuse a retained shell, but does not own it
@@ -214,12 +244,7 @@ self.addEventListener('install', event => {
     const retained = (await caches.keys()).includes(CACHE);
     const cache = await caches.open(CACHE);
     try {
-      for (const path of CONFIG.files) {
-        const request = new Request(absolute(path), { cache: 'reload', integrity: CONFIG.integrity[path] });
-        const response = await fetch(request);
-        if (!response.ok || response.redirected) throw new Error(`App-shell fetch failed: ${path}`);
-        if (!await cache.match(request)) await cache.put(request, response);
-      }
+      await transferShell(cache);
       const metadata = await caches.open(META);
       const previous = await read(metadata, installedKey);
       // Keep the successful candidate protected until retirement is recorded.

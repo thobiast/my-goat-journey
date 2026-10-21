@@ -325,6 +325,15 @@ installation or activation. In particular:
   must deny guarded activation. Optional activation/metadata failures and sustained
   quota must retain verified shell files and fail closed for unknown versions,
   not assume browser rollback or mix network assets into an old document.
+- The worker model also covers stalled headers/body consumption, a single total
+  transfer budget across files, delayed storage settlement and coordinated failed
+  candidate deletion before navigation resumes. Keep exact predecessor bytes,
+  client assignments, retained rollbacks, no late publication/writes after cleanup,
+  and later successful installation covered under root/default/alternate bases.
+  Native compiled tests must hold real HTTP transfers, observe actual cancellation
+  and held/pending Web Locks, and record predecessor navigation recovery time;
+  accelerated model clocks are not native-browser evidence. Do not shorten the
+  production transfer budget only for browser tests.
 - `tests/pwa/update-client.test.ts` covers pristine entry, genuine hidden→visible
   resume, interaction cancellation, exact-worker acknowledgement, the one-reload
   latch, denial/error/timeout unlock and absence of automatic retry loops.
