@@ -66,8 +66,11 @@ test('canonical pillar geometry is reused in every idea and both Today demonstra
   const expected: Record<string, string[]> = {
     body: [...body.matchAll(/<path d="([^"]+)"/g)].map((match) => match[1]),
   };
-  for (const kind of ['mind', 'nutrition', 'hygiene'])
-    expected[kind] = [source.match(new RegExp(`${kind}: '([^']+)'`))![1]];
+  for (const kind of ['mind', 'nutrition', 'hygiene']) {
+    const match = source.match(new RegExp(`${kind}\\s*:\\s*'([^']+)'`));
+    if (!match) throw new Error(`Missing canonical ${kind} icon path in PillarIcon.tsx`);
+    expected[kind] = [match[1]];
+  }
   const mapping = [
     'mind',
     'body',

@@ -521,8 +521,8 @@ stability checks. Use the same `SITE_PREFIX` across each alternate-prefix run;
 restore default development/runtime configuration afterward.
 
 The opt-in screenshot suite `e2e/publication-captures.spec.ts` includes a landing
-check permitting exactly the entry script and five reviewed module URLs (including
-that entry), with byte-identical HTML, local assets, no manifest and zero
+check permitting exactly six module URLs total: the entry module and five imported
+modules, with byte-identical HTML, local assets, no manifest and zero
 diary/channel/worker registration checks. Its source-preview server supplies
 JavaScript MIME types.
 It requires explicit `PUBLICATION_CAPTURE=1`; the wrapper does not forward

@@ -261,9 +261,9 @@ test('landing is responsive, local-only and does not access diary storage', asyn
           (window as unknown as { publicationStorageAccess: string[] }).publicationStorageAccess,
       ),
     ).toEqual([]);
-    expect(await page.getByRole('link', { name: 'Open the app' }).getAttribute('href')).toBe(
-      'app/',
-    );
+    expect(
+      await page.getByRole('link', { name: 'Open the app', exact: true }).getAttribute('href'),
+    ).toBe('app/');
     await page.evaluate(() => scrollTo(0, 0));
     await page.screenshot({ path: `${evidence}/landing-${viewport.width}.png`, fullPage: true });
   }
@@ -272,13 +272,20 @@ test('landing is responsive, local-only and does not access diary storage', asyn
     ...new Set(requests.map((url) => new URL(url).pathname).filter((path) => path.endsWith('.js'))),
   ];
   expect(scripts.sort()).toEqual(
-    ['landing.js', 'language.js', 'translations.js', 'demonstrations.js', 'tour.js']
+    [
+      'landing.js',
+      'language.js',
+      'translations.js',
+      'demonstrations.js',
+      'tour.js',
+      'installation.js',
+    ]
       .map((name) => `${landingPath}assets/${name}`)
       .sort(),
   );
   expect(errors).toEqual([]);
   if (!localLanding) {
-    await page.getByRole('link', { name: 'Open the app' }).click();
+    await page.getByRole('link', { name: 'Open the app', exact: true }).click();
     expect(new URL(page.url()).pathname).toBe(upstream.pathname);
     await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeVisible();
   }
