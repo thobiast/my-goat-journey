@@ -8,6 +8,7 @@ import type { Copy } from '../habits/GoalFields';
 import { displayDate } from '../today/TodayHeader';
 import { CalendarLegend, ConsistencyCard, rangeLabel } from './ConsistencyCard';
 import {
+  calendarCards,
   hasEarlierHistory,
   periodWindow,
   type CalendarScope,
@@ -100,6 +101,15 @@ export function ProgressPage({
       ? [{ kind: 'all' }]
       : filtered.map((h) => ({ kind: 'habit', id: h.id }));
   const earlier = scopes.some((scope) => hasEarlierHistory(data, scope, window.start));
+  const cardScopes: CalendarScope[] =
+    value.view === 'pillars'
+      ? [{ kind: 'all' }, ...data.pillars.map((p) => ({ kind: 'pillar' as const, id: p.id }))]
+      : scopes;
+  const scopeKey = (scope: CalendarScope) =>
+    scope.kind === 'all' ? 'all' : `${scope.kind}:${scope.id}`;
+  // One operation per render, not an identity/revision cache: in-place fact changes cannot go stale.
+  const projected = calendarCards(data, cardScopes, window);
+  const calendars = new Map(cardScopes.map((scope, index) => [scopeKey(scope), projected[index]]));
 
   const reset = () => change({ ...value, status: 'active', pillarId: 'all' });
 
@@ -114,6 +124,7 @@ export function ProgressPage({
     <ConsistencyCard
       key={scope.kind === 'all' ? 'all' : scope.id}
       data={data}
+      days={calendars.get(scopeKey(scope))!}
       scope={scope}
       window={window}
       interval={value.interval}

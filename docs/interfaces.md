@@ -67,9 +67,16 @@ open, resume and focus. Production exposes no clock or injected-failure settings
 - Empty scopes are neutral, not automatic successes. Summary fields are
   `required`, `requiredDone`, `optional`, `optionalDone` and `status`
   (`pending`, `complete` or `neutral`).
-- `src/domain/history.ts` exports `editableOccurrences` and newest-first
-  `habitHistory`. They include implicit missed scheduled rows without persisting
-  them merely because someone viewed history.
+- `src/domain/history.ts` exports `editableOccurrences`, newest-first
+  `habitHistory`, and `pillarHistory` (newest-first dates, original habit order
+  within each date). They include implicit missed scheduled rows without
+  persisting them merely because someone viewed history. Pillar grouping uses
+  each row's historical assignment, not the habit's current pillar.
+- `createAgendaProjection(input)` owns a read-only operation's habit/date
+  occurrence index and first-required-date lookups. Replay and histories create
+  one context per call; discard it before mutating facts. It is not a dataset
+  cache: neither object identity nor local revision authorizes reuse across
+  mutations or replacement. Indexes are never persisted or exported.
 - Corrections are limited to eligible Today and the immediately previous eligible
   date, not the last successful date. Older rows are read-only.
 - `src/domain/completion.ts` exports `updateCompletion`; it updates the same
@@ -553,6 +560,14 @@ active habits, with scoped expandable Filters and a summary.
   including its safe-area padding.
 
 ### Calendar ownership and states
+
+`calendarCards(data, scopes, window)` projects each date once for all requested
+cards, sharing dated grouping only within that call; `calendarDays` is its
+single-scope wrapper. ProgressPage creates the range projection per render and
+passes days to ConsistencyCard rather than retaining per-card dataset caches.
+History views also rebuild their operation contexts per render. App's existing
+progress-snapshot memo belongs to committed Repository results (fresh readback
+objects) and the current local day; no index is retained in that memo.
 
 - Shared intervals are `7d` / `1m` / `3m` / `12m` / `24m`. `7d` has seven
   consecutive local dates and seven-day steps. Monthly groups use non-overlapping

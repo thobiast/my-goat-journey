@@ -1,6 +1,7 @@
 import { localDate, parseLocalDate } from '../../domain/calendar';
 import type { Dataset, LocalDate } from '../../domain/types';
-import { calendarDays, type CalendarScope, type PeriodWindow } from './calendar';
+import { createAgendaProjection } from '../../domain/agenda';
+import { participates, type CalendarScope, type PeriodWindow } from './calendar';
 
 export interface CalendarMonth {
   key: string;
@@ -65,13 +66,13 @@ export function trackingStart(data: Dataset, scope: CalendarScope): LocalDate | 
   limit.setDate(limit.getDate() + 7);
   const last = localDate(limit);
   const cursor = parseLocalDate(first);
+  const projection = createAgendaProjection(data);
   for (
     let date = localDate(cursor);
     date <= last;
     cursor.setDate(cursor.getDate() + 1), date = localDate(cursor)
   ) {
-    if (calendarDays(data, scope, { start: date, end: date, historyEnd: date })[0].applicable)
-      return date;
+    if (participates(data, scope, date, projection.agenda(date))) return date;
   }
   return undefined;
 }

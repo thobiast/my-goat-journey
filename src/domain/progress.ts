@@ -1,6 +1,5 @@
-import { agenda, pendingReactivationDate, summarize } from './agenda';
+import { createAgendaProjection, pendingReactivationDate, summarize } from './agenda';
 import { localDate, parseLocalDate } from './calendar';
-import { migrateDataset } from '../data/migrations';
 import type { AgendaSummary, CompatibleDataset, LocalDate } from './types';
 
 export interface StreakProgress {
@@ -82,7 +81,8 @@ function reconcileAggregateDay(
 
 /** Reconcile derived progress from dated facts without mutating the browser dataset. */
 export function calculateProgress(input: CompatibleDataset, today: LocalDate): ProgressSnapshot {
-  const data = migrateDataset(input);
+  const projection = createAgendaProjection(input);
+  const data = projection.data;
   parseLocalDate(today);
   const result: ProgressSnapshot = {
     habits: Object.fromEntries(
@@ -104,7 +104,7 @@ export function calculateProgress(input: CompatibleDataset, today: LocalDate): P
     date <= today;
     cursor.setDate(cursor.getDate() + 1), date = localDate(cursor)
   ) {
-    const items = agenda(data, date);
+    const items = projection.agenda(date);
     for (const item of items) {
       const progress = result.habits[item.habit.id];
       const activationId = item.activationId;

@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { localDate, parseLocalDate, weekday } from '../../domain/calendar';
 import type { Dataset, Language, LocalDate, Pillar } from '../../domain/types';
 import type { HabitProgress, StreakProgress } from '../../domain/progress';
@@ -125,6 +125,11 @@ export function DailyCalendar({
   const selectable = days.filter((day) => day.applicable);
   const first = selectable[0]?.date;
   const active = selectable.some((day) => day.date === focused) ? focused : first;
+  // A calendar render formats many dates with one locale/options pair.
+  const dateFormatter = new Intl.DateTimeFormat(language === 'pt' ? 'pt-BR' : 'en', {
+    dateStyle: 'full',
+  });
+  const dateLabel = (date: LocalDate) => dateFormatter.format(parseLocalDate(date));
   const monthFormatter = new Intl.DateTimeFormat(language === 'pt' ? 'pt-BR' : 'en', {
     month: 'long',
     year: 'numeric',
@@ -184,7 +189,7 @@ export function DailyCalendar({
           role="img"
           data-context-date={date}
           data-context="before-tracking"
-          aria-label={`${fullDate(date, language)} · ${copy.beforeTracking}`}
+          aria-label={`${dateLabel(date)} · ${copy.beforeTracking}`}
           key={date}
         >
           {number(date)}
@@ -199,7 +204,7 @@ export function DailyCalendar({
         data-calendar-date={date}
         data-state={day.state}
         data-history-id={`${scopeKey}:${date}`}
-        aria-label={`${fullDate(date, language)} · ${stateLabel(day.state, copy)}`}
+        aria-label={`${dateLabel(date)} · ${stateLabel(day.state, copy)}`}
         tabIndex={active === date ? 0 : -1}
         disabled={busy}
         onFocus={() => setFocused(date)}
@@ -260,7 +265,7 @@ export function DailyCalendar({
       <p role="status" aria-live="polite" className="visually-hidden">
         {focused &&
           dayMap.get(focused)?.applicable &&
-          `${fullDate(focused, language)} · ${stateLabel(dayMap.get(focused)!.state, copy)}`}
+          `${dateLabel(focused)} · ${stateLabel(dayMap.get(focused)!.state, copy)}`}
       </p>
     </div>
   );
@@ -268,6 +273,7 @@ export function DailyCalendar({
 
 interface ConsistencyCardProps {
   data: Dataset;
+  days?: CalendarDay[];
   scope: CalendarScope;
   window: PeriodWindow;
   interval: Interval;
@@ -283,6 +289,7 @@ interface ConsistencyCardProps {
 
 export function ConsistencyCard({
   data,
+  days: projectedDays,
   scope,
   window,
   interval,
@@ -295,28 +302,9 @@ export function ConsistencyCard({
   openDay,
   openHabit,
 }: ConsistencyCardProps) {
-  const days = useMemo(
-    () => calendarDays(data, scope, window),
-    // Value-based memo keys preserve reuse when callers recreate scope/window objects.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      data,
-      scope.kind,
-      // The discriminated union has an id only for habit/pillar scopes.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      'id' in scope ? scope.id : undefined,
-      window.start,
-      window.end,
-      window.historyEnd,
-    ],
-  );
+  const days = projectedDays ?? calendarDays(data, scope, window);
   const stats = periodStats(days);
-  const start = useMemo(
-    () => trackingStart(data, scope),
-    // Same value-based scope identity as the calendar memo above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, scope.kind, 'id' in scope ? scope.id : undefined],
-  );
+  const start = trackingStart(data, scope);
   const trackingDate =
     scope.kind !== 'habit' && start
       ? new Intl.DateTimeFormat(data.settings.language === 'pt' ? 'pt-BR' : 'en', {

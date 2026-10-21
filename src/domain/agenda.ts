@@ -9,6 +9,7 @@ import type {
   HabitVersion,
   MembershipVersion,
   LocalDate,
+  Occurrence,
 } from './types';
 
 export function definitionAt(habit: Habit, date: LocalDate): HabitVersion | undefined {
@@ -53,38 +54,72 @@ export function activationAt(habit: Habit, date: LocalDate): ActivationPeriod | 
     : undefined;
 }
 
-export function agenda(input: CompatibleDataset, date: LocalDate): AgendaItem[] {
+/** Read-only operation context. Discard before mutating facts; never cache by revision or identity. */
+export function createAgendaProjection(input: CompatibleDataset) {
   const data = migrateDataset(input);
-  return data.habits
-    .flatMap((habit) => {
-      const period = activationAt(habit, date);
-      if (date < habit.createdOn || !period) return [];
-      const version = definitionAt(habit, date);
-      const membership = membershipAt(habit, date);
-      if (!version || !membership) return [];
-      const optional = date === habit.createdOn;
-      if (!optional && !version.weekdays.includes(weekday(date))) return [];
-      const occurrence = data.occurrences.find((o) => o.habitId === habit.id && o.date === date);
-      return [
-        {
-          habit,
-          date,
-          weekdays: version.weekdays,
-          goal: occurrence?.goal ?? version.goal,
-          pillarId: occurrence?.pillarId ?? membership.pillarId,
-          kind: occurrence?.kind ?? (optional ? 'optional' : 'required'),
-          done: occurrence?.done ?? false,
-          firstRequiredDate: nextHabitScheduledDate(habit, habit.createdOn),
-          activationId: occurrence?.activationId ?? period.id,
-          pillarParticipation:
-            occurrence?.pillarParticipation ?? (optional ? 'on-completion' : 'required'),
-          completionProvenance: occurrence?.completionProvenance ?? 'never-credited',
-          assignmentLocked: occurrence?.assignmentLocked ?? false,
-          exempt: occurrence?.exempt ?? false,
-        } satisfies AgendaItem,
-      ];
-    })
-    .sort((a, b) => Number(a.kind === 'optional') - Number(b.kind === 'optional'));
+  const habits = new Map(data.habits.map((habit) => [habit.id, habit]));
+  const occurrences = new Map<string, Map<LocalDate, Occurrence>>();
+  for (const occurrence of data.occurrences) {
+    let dates = occurrences.get(occurrence.habitId);
+    if (!dates) occurrences.set(occurrence.habitId, (dates = new Map()));
+    // Match the original first-match lookup even before portable validation rejects duplicates.
+    if (!dates.has(occurrence.date)) dates.set(occurrence.date, occurrence);
+  }
+  const firstRequiredDates = new Map<string, LocalDate>();
+
+  function projectHabit(habit: Habit, date: LocalDate): AgendaItem | undefined {
+    const period = activationAt(habit, date);
+    if (date < habit.createdOn || !period) return undefined;
+    const version = definitionAt(habit, date);
+    const membership = membershipAt(habit, date);
+    if (!version || !membership) return undefined;
+    const optional = date === habit.createdOn;
+    if (!optional && !version.weekdays.includes(weekday(date))) return undefined;
+    const occurrence = occurrences.get(habit.id)?.get(date);
+    let firstRequiredDate = firstRequiredDates.get(habit.id);
+    if (!firstRequiredDate) {
+      firstRequiredDate = nextHabitScheduledDate(habit, habit.createdOn);
+      firstRequiredDates.set(habit.id, firstRequiredDate);
+    }
+    return {
+      habit,
+      date,
+      weekdays: version.weekdays,
+      goal: occurrence?.goal ?? version.goal,
+      pillarId: occurrence?.pillarId ?? membership.pillarId,
+      kind: occurrence?.kind ?? (optional ? 'optional' : 'required'),
+      done: occurrence?.done ?? false,
+      firstRequiredDate,
+      activationId: occurrence?.activationId ?? period.id,
+      pillarParticipation:
+        occurrence?.pillarParticipation ?? (optional ? 'on-completion' : 'required'),
+      completionProvenance: occurrence?.completionProvenance ?? 'never-credited',
+      assignmentLocked: occurrence?.assignmentLocked ?? false,
+      exempt: occurrence?.exempt ?? false,
+    };
+  }
+
+  return {
+    data,
+    habit(habitId: string, date: LocalDate): AgendaItem | undefined {
+      const habit = habits.get(habitId);
+      return habit ? projectHabit(habit, date) : undefined;
+    },
+    agenda(date: LocalDate): AgendaItem[] {
+      return data.habits
+        .flatMap((habit) => {
+          const item = projectHabit(habit, date);
+          return item ? [item] : [];
+        })
+        .sort((a, b) => Number(a.kind === 'optional') - Number(b.kind === 'optional'));
+    },
+  };
+}
+
+export type AgendaProjection = ReturnType<typeof createAgendaProjection>;
+
+export function agenda(input: CompatibleDataset, date: LocalDate): AgendaItem[] {
+  return createAgendaProjection(input).agenda(date);
 }
 
 export function summarize(items: AgendaItem[], scope: 'habit' | 'pillar' = 'habit'): AgendaSummary {

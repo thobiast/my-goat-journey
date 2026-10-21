@@ -1,6 +1,12 @@
 import { localDate, parseLocalDate } from '../../domain/calendar';
-import { activationAt, agenda, definitionAt, membershipAt, summarize } from '../../domain/agenda';
-import type { AgendaItem, Dataset, LocalDate } from '../../domain/types';
+import {
+  activationAt,
+  createAgendaProjection,
+  definitionAt,
+  membershipAt,
+  summarize,
+} from '../../domain/agenda';
+import type { AgendaItem, Dataset, Habit, LocalDate } from '../../domain/types';
 
 export type CalendarScope =
   { kind: 'habit'; id: string } | { kind: 'pillar'; id: string } | { kind: 'all' };
@@ -13,23 +19,85 @@ export interface CalendarDay {
   items: AgendaItem[];
 }
 
-function participates(
+function participationPillar(habit: Habit, date: LocalDate, item?: AgendaItem): string | undefined {
+  if (date < habit.createdOn || !activationAt(habit, date) || !definitionAt(habit, date))
+    return undefined;
+  return item?.pillarId ?? membershipAt(habit, date)?.pillarId;
+}
+
+export function participates(
   data: Dataset,
   scope: CalendarScope,
   date: LocalDate,
   items: AgendaItem[],
 ): boolean {
+  const byHabit = new Map(items.map((item) => [item.habit.id, item]));
   return data.habits.some((habit) => {
-    if (date < habit.createdOn || !activationAt(habit, date) || !definitionAt(habit, date))
-      return false;
-    const item = items.find((item) => item.habit.id === habit.id);
-    const pillarId = item?.pillarId ?? membershipAt(habit, date)?.pillarId;
-    return scope.kind === 'habit'
-      ? habit.id === scope.id
-      : scope.kind === 'all'
-        ? pillarId !== undefined
-        : pillarId === scope.id;
+    if (scope.kind === 'habit' && habit.id !== scope.id) return false;
+    const pillarId = participationPillar(habit, date, byHabit.get(habit.id));
+    // Valid habits always have a membership while active.
+    return scope.kind === 'pillar' ? pillarId === scope.id : pillarId !== undefined;
   });
+}
+
+/** Project one range for all cards. Dated agendas and grouping are discarded after this call. */
+export function calendarCards(
+  data: Dataset,
+  scopes: CalendarScope[],
+  window: PeriodWindow,
+): CalendarDay[][] {
+  const cards: CalendarDay[][] = scopes.map(() => []);
+  const cursor = parseLocalDate(window.start);
+  if (!scopes.length) return cards;
+  const projection = createAgendaProjection(data);
+  const habits = new Map(data.habits.map((habit) => [habit.id, habit]));
+  for (
+    let date = localDate(cursor);
+    date <= window.historyEnd;
+    cursor.setDate(cursor.getDate() + 1), date = localDate(cursor)
+  ) {
+    const allItems = projection.agenda(date);
+    const byHabit = new Map<string, AgendaItem[]>();
+    const byPillar = new Map<string, AgendaItem[]>();
+    for (const item of allItems) {
+      byHabit.set(item.habit.id, [item]);
+      let items = byPillar.get(item.pillarId);
+      if (!items) byPillar.set(item.pillarId, (items = []));
+      items.push(item);
+    }
+    const participating = new Set<string>();
+    for (const habit of data.habits) {
+      const pillarId = participationPillar(habit, date, byHabit.get(habit.id)?.[0]);
+      if (pillarId !== undefined) participating.add(pillarId);
+    }
+    scopes.forEach((scope, index) => {
+      const items =
+        scope.kind === 'all'
+          ? allItems
+          : scope.kind === 'habit'
+            ? (byHabit.get(scope.id) ?? [])
+            : (byPillar.get(scope.id) ?? []);
+      const summary = summarize(items, scope.kind === 'pillar' ? 'pillar' : 'habit');
+      const state: DayState =
+        summary.status === 'complete'
+          ? 'completed'
+          : summary.status === 'neutral'
+            ? 'unscheduled'
+            : items.some((item) => item.done) && scope.kind !== 'habit'
+              ? 'partial'
+              : 'incomplete';
+      // Habit cards keep archive gaps gray; pillars only show actual historical participation.
+      const habit = scope.kind === 'habit' ? habits.get(scope.id) : undefined;
+      const applicable =
+        scope.kind === 'habit'
+          ? !!habit && habit.createdOn <= date
+          : scope.kind === 'all'
+            ? participating.size > 0
+            : participating.has(scope.id);
+      cards[index].push({ date, state, applicable, items });
+    });
+  }
+  return cards;
 }
 
 /** Project authoritative obligations without changing progress or saved facts. */
@@ -38,36 +106,7 @@ export function calendarDays(
   scope: CalendarScope,
   window: PeriodWindow,
 ): CalendarDay[] {
-  const days: CalendarDay[] = [];
-  const cursor = parseLocalDate(window.start);
-  for (
-    let date = localDate(cursor);
-    date <= window.historyEnd;
-    cursor.setDate(cursor.getDate() + 1), date = localDate(cursor)
-  ) {
-    const allItems = agenda(data, date);
-    const items = allItems.filter(
-      (item) =>
-        scope.kind === 'all' ||
-        (scope.kind === 'habit' ? item.habit.id === scope.id : item.pillarId === scope.id),
-    );
-    const summary = summarize(items, scope.kind === 'pillar' ? 'pillar' : 'habit');
-    const state: DayState =
-      summary.status === 'complete'
-        ? 'completed'
-        : summary.status === 'neutral'
-          ? 'unscheduled'
-          : items.some((item) => item.done) && scope.kind !== 'habit'
-            ? 'partial'
-            : 'incomplete';
-    // Habit cards keep archive gaps gray; pillars only show actual historical participation.
-    const applicable =
-      scope.kind === 'habit'
-        ? data.habits.some((habit) => habit.id === scope.id && habit.createdOn <= date)
-        : participates(data, scope, date, allItems);
-    days.push({ date, state, applicable, items });
-  }
-  return days;
+  return calendarCards(data, [scope], window)[0];
 }
 
 /** Participation includes unchecked optional opportunities and real off-days, not just saved credit. */
@@ -76,12 +115,13 @@ export function hasEarlierHistory(data: Dataset, scope: CalendarScope, start: Lo
   const first = data.habits.map((habit) => habit.createdOn).sort()[0];
   if (!first || first >= start) return false;
   const cursor = parseLocalDate(first);
+  const projection = createAgendaProjection(data);
   for (
     let date = localDate(cursor);
     date < start;
     cursor.setDate(cursor.getDate() + 1), date = localDate(cursor)
   ) {
-    if (participates(data, scope, date, agenda(data, date))) return true;
+    if (participates(data, scope, date, projection.agenda(date))) return true;
   }
   return false;
 }

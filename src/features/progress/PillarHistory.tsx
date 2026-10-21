@@ -1,6 +1,5 @@
-import { useMemo } from 'react';
 import { summarize } from '../../domain/agenda';
-import { habitHistory } from '../../domain/history';
+import { pillarHistory } from '../../domain/history';
 import type { Dataset, LocalDate, Pillar } from '../../domain/types';
 import type { ProgressSnapshot } from '../../domain/progress';
 import type { Copy } from '../habits/GoalFields';
@@ -30,15 +29,7 @@ export function PillarHistory({
   limit,
   showMore,
 }: PillarHistoryProps) {
-  const days = useMemo(() => {
-    const rows = data.habits
-      .flatMap((h) => habitHistory(data, h.id, today))
-      .filter((i) => i.pillarId === pillar.id);
-    return [...new Set(rows.map((i) => i.date))]
-      .sort()
-      .reverse()
-      .map((date) => ({ date, items: rows.filter((i) => i.date === date) }));
-  }, [data, today, pillar.id]);
+  const days = pillarHistory(data, pillar.id, today);
   return (
     <>
       <section className={`pillar ${pillar.defaultKey ?? 'custom'}`}>
