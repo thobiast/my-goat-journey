@@ -316,6 +316,10 @@ replacement, with validation repeated inside the transaction.
 
 - Export and restore share an inclusive **20 MiB** limit for a complete UTF-8 JSON
   file. Export produces a JSON Blob without BOM through one serializer.
+- Restore checks the original file size before reading bytes, then decodes strict
+  UTF-8. Invalid byte sequences reject as `BackupError('invalid')` rather than
+  silently replacing text. An initial UTF-8 BOM is accepted; valid literal Unicode,
+  including U+FFFD, is preserved. This does not detect every possible file change.
 - Measure actual Blob/file bytes, not text length. The normalized current-schema
   candidate must also fit the same byte policy.
 - Oversized exports produce no download, truncation or partial backup. Growth

@@ -513,12 +513,9 @@ export function serializeBackup(data: Dataset, now = new Date()): Blob {
 export async function parseBackup(file: Blob): Promise<{ dataset: Dataset; exportedAt: string }> {
   if (file.size > MAX_BACKUP_BYTES) throw new BackupError('size');
   try {
-    const r = record(JSON.parse(await file.text()), [
-      'format',
-      'formatVersion',
-      'exportedAt',
-      'dataset',
-    ]);
+    const bytes = await file.arrayBuffer();
+    const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    const r = record(JSON.parse(decoded), ['format', 'formatVersion', 'exportedAt', 'dataset']);
     if (r.format !== 'my-goat-journey-backup' || r.formatVersion !== 1) invalid();
     const exportedAt = timestamp(r.exportedAt);
     const dataset = validateDataset(r.dataset);

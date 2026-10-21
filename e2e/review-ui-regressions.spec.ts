@@ -220,12 +220,12 @@ test('Cancelling a pending backup read through deletion re-enables selection wit
     }),
   );
   await page.evaluate(() => {
-    const text = Blob.prototype.text;
-    Blob.prototype.text = function () {
-      Blob.prototype.text = text;
-      return new Promise<string>((resolve) => {
+    const arrayBuffer = Blob.prototype.arrayBuffer;
+    Blob.prototype.arrayBuffer = function () {
+      Blob.prototype.arrayBuffer = arrayBuffer;
+      return new Promise<ArrayBuffer>((resolve) => {
         (window as BackupReadProbeWindow).releaseBackupRead = async () =>
-          resolve(await text.call(this));
+          resolve(await arrayBuffer.call(this));
       });
     };
   });

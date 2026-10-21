@@ -174,11 +174,11 @@ async function fixture(page: Page) {
 
 async function holdParse(page: Page) {
   await page.evaluate(() => {
-    const original = File.prototype.text;
-    File.prototype.text = function () {
-      File.prototype.text = original;
+    const original = File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer = function () {
+      File.prototype.arrayBuffer = original;
       sessionStorage.setItem('parse-held', 'true');
-      return new Promise<string>((resolve, reject) => {
+      return new Promise<ArrayBuffer>((resolve, reject) => {
         (window as typeof window & { pwaTestParseRelease?: () => void }).pwaTestParseRelease =
           () => {
             original.call(this).then(resolve, reject);

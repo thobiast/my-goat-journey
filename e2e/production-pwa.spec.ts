@@ -312,10 +312,10 @@ async function backup(page: Page) {
 
 async function holdParse(page: Page) {
   await page.evaluate(() => {
-    const original = File.prototype.text;
-    File.prototype.text = function () {
-      File.prototype.text = original;
-      return new Promise<string>((resolve, reject) => {
+    const original = File.prototype.arrayBuffer;
+    File.prototype.arrayBuffer = function () {
+      File.prototype.arrayBuffer = original;
+      return new Promise<ArrayBuffer>((resolve, reject) => {
         (
           window as typeof window & { pwaTestParseRelease?: () => void; pwaTestParseHeld?: boolean }
         ).pwaTestParseHeld = true;

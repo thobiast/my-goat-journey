@@ -83,6 +83,65 @@ test('native complete backup preserves exact facts and recalculated progress wit
   expect(validateDataset(data)).toEqual(data);
 });
 
+test('invalid UTF-8 inside a JSON string rejects instead of silently replacing user text', async () => {
+  const data = fixture();
+  data.pillars.at(-1)!.name = 'ENCODING_MARKER';
+  const bytes = new Uint8Array(await envelope(data).arrayBuffer());
+  const marker = new TextEncoder().encode('ENCODING_MARKER');
+  const offset = bytes.findIndex((_, i) => marker.every((byte, j) => bytes[i + j] === byte));
+  expect(offset).toBeGreaterThan(0);
+  bytes[offset] = 0xff;
+  const corrupted = new Blob([bytes]);
+
+  // The permissive read still produces valid JSON and structurally valid changed facts.
+  const replaced = validateDataset(JSON.parse(await corrupted.text()).dataset);
+  expect(replaced.pillars.at(-1)!.name).toBe('�NCODING_MARKER');
+  await expect(parseBackup(corrupted)).rejects.toEqual(new BackupError('invalid'));
+});
+
+test.each([
+  ['invalid continuation', [0xc3, 0x28], '�('],
+  ['incomplete sequence', [0xe2, 0x82], '�'],
+] as const)(
+  'rejects UTF-8 %s inside otherwise valid JSON',
+  async (_name, sequence, replacement) => {
+    const data = fixture();
+    data.pillars.at(-1)!.name = 'ENCODING_MARKER';
+    const json = await envelope(data).text();
+    const [prefix, suffix] = json.split('ENCODING_MARKER');
+    const corrupted = new Blob([
+      new TextEncoder().encode(prefix),
+      Uint8Array.from(sequence),
+      new TextEncoder().encode(suffix),
+    ]);
+    expect(validateDataset(JSON.parse(await corrupted.text()).dataset).pillars.at(-1)!.name).toBe(
+      replacement,
+    );
+    await expect(parseBackup(corrupted)).rejects.toEqual(new BackupError('invalid'));
+  },
+);
+
+test.each([false, true])('valid UTF-8 preserves literal Unicode with BOM=%s', async (bom) => {
+  const data = fixture();
+  data.pillars.at(-1)!.name = '  Ação, música 🎵 日本語 e �\ufeff  ';
+  data.habits[0].versions[0].goal = '  Ler português: çãé; 👩🏽‍🚀; e\u0301; 中文; �\n  ';
+  const bytes = await envelope(data).arrayBuffer();
+  const file = new Blob(bom ? [new Uint8Array([0xef, 0xbb, 0xbf]), bytes] : [bytes]);
+  // Blob.text() historically consumes an initial BOM, but not literal U+FEFF in user text.
+  expect(validateDataset(JSON.parse(await file.text()).dataset)).toEqual(data);
+  expect((await parseBackup(file)).dataset).toEqual(data);
+});
+
+test('byte read failure maps to invalid without changing the supplied dataset', async () => {
+  const data = fixture();
+  const before = structuredClone(data);
+  const file = envelope(data);
+  vi.spyOn(file, 'arrayBuffer').mockRejectedValueOnce(new Error('Controlled byte read failure'));
+  await expect(parseBackup(file)).rejects.toEqual(new BackupError('invalid'));
+  expect(data).toEqual(before);
+  expect((await parseBackup(file)).dataset).toEqual(data);
+});
+
 const corruptions: [string, (d: Dataset) => unknown][] = [
   [
     'duplicate pillars',
@@ -563,7 +622,7 @@ test.each([-1, 0, 1])(
       expect(() => serializeBackup(data, now)).toThrow(expect.objectContaining({ code: 'size' }));
       const raw = envelope((({ revision: _r, ...portable }) => portable)(data));
       expect(raw.size).toBe(target);
-      const read = vi.spyOn(raw, 'text');
+      const read = vi.spyOn(raw, 'arrayBuffer');
       await expect(parseBackup(raw)).rejects.toMatchObject({ code: 'size' });
       expect(read).not.toHaveBeenCalled();
     } else {
