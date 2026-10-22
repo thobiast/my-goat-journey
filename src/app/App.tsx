@@ -97,6 +97,7 @@ export function App() {
   const heading = useRef<HTMLHeadingElement>(null);
   const bottomNavigation = useRef<HTMLElement>(null);
   const focusPageHeading = usePageHeadingFocus(heading);
+  const replacementFocus = useRef<{ epoch: number; feedback: number } | undefined>(undefined);
   const settingsReturn = useRef<Route>({ screen: 'today' });
   const returnRoute = useRef<Route>({ screen: 'today' });
   const detailReturn = useRef<Route>({ screen: 'progress' });
@@ -609,6 +610,8 @@ export function App() {
     return () => observer.disconnect();
   }, [data?.onboardingComplete]);
   useLayoutEffect(() => {
+    // Successful replacement owns focus even if an onboarding-step change also fires this effect.
+    if (replacementFocus.current && route.screen === 'settings' && data?.onboardingComplete) return;
     if (restoreOrigin.current && origin.current) {
       const target =
         origin.current.id === 'general-add-habit'
@@ -638,6 +641,19 @@ export function App() {
     data?.onboardingComplete,
     focusPageHeading,
   ]);
+  useLayoutEffect(() => {
+    const request = replacementFocus.current;
+    replacementFocus.current = undefined;
+    if (
+      request &&
+      request.epoch === epoch.current &&
+      request.feedback === feedbackVersion.current &&
+      route.screen === 'settings' &&
+      data?.onboardingComplete &&
+      !transitionLocked.current
+    )
+      focusPageHeading(true);
+  }, [formEpoch, route.screen, data?.onboardingComplete, focusPageHeading]);
   const currentHabit = data?.habits.find((h) => h.id === route.habitId);
   const readOnlyEditor =
     route.screen === 'editHabit' && !!currentHabit && beforeCreation(currentHabit, today);
@@ -1527,6 +1543,12 @@ export function App() {
               () => repository.replaceDataset(candidate, revision, deviceClock.now()),
               (state) => {
                 clearPersonalState(state);
+                // Consume once after the Settings remount, without scrolling or delayed callbacks.
+                if (state.onboardingComplete)
+                  replacementFocus.current = {
+                    epoch: epoch.current,
+                    feedback: feedbackVersion.current,
+                  };
                 settingsReturn.current = { screen: 'today' };
                 detailReturn.current = { screen: 'progress' };
                 pillarHistoryReturn.current = { screen: 'progress' };

@@ -34,6 +34,10 @@ export function PillarForm({
           document.getElementById('pillar-name')?.focus();
           return;
         }
+        if (rename && value === name) {
+          cancel();
+          return;
+        }
         save(value);
       }}
     >

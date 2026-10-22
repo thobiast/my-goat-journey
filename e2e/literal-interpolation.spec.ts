@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { nav, onDate, readDataset, setupScheduledHabits } from './support/habit-fixtures';
 import en from '../src/i18n/en.json' with { type: 'json' };
 import pt from '../src/i18n/pt.json' with { type: 'json' };
+import { expectReview, openReviewSupporting } from './support/management-fixtures';
 
 const goal = "Practice $& $$ $` $' literally";
 const target = "Destination $& $$ $` $'";
@@ -41,6 +42,68 @@ async function literalFixture(page: Page, language: 'en' | 'pt') {
 
 for (const language of ['en', 'pt'] as const) {
   const copy = language === 'en' ? en : pt;
+  for (const credited of [false, true]) {
+    test(`Habit review move explanation preserves literal names ${language} credited=${credited}`, async ({
+      page,
+    }) => {
+      await literalFixture(page, language);
+      const source = "Source $& $$ $` $' <practice>";
+      await page
+        .getByRole('region', { name: copy.body, exact: true })
+        .getByRole('button', {
+          name: copy.pillarActions.replace('{pillar}', () => copy.body),
+          exact: true,
+        })
+        .click();
+      await page
+        .locator('[data-action-surface]')
+        .getByRole('button', {
+          name: copy.renamePillar,
+          exact: true,
+        })
+        .click();
+      await page.getByLabel(copy.pillarName, { exact: true }).fill(source);
+      await page.getByRole('button', { name: copy.saveChanges, exact: true }).click();
+      if (credited) {
+        await nav(page, copy.today).click();
+        const done = page.getByRole('checkbox', { name: `${copy.done}: ${goal}`, exact: true });
+        await done.click();
+        await expect(done).toBeChecked();
+        await nav(page, copy.pillars).click();
+        await page
+          .getByRole('region', { name: source, exact: true })
+          .locator('.pillar-disclosure')
+          .click();
+      }
+      await page
+        .getByRole('region', { name: source, exact: true })
+        .getByRole('button', { name: copy.edit, exact: true })
+        .click();
+      await page.getByLabel(copy.pillar, { exact: true }).selectOption('mind');
+      await page.getByRole('button', { name: copy.saveChanges, exact: true }).click();
+      await nav(page, copy.progress).click();
+      await page.getByRole('button', { name: goal, exact: true }).click();
+      await expectReview(page, goal);
+      await openReviewSupporting(page);
+      const before = await readDataset(page);
+      const date = new Intl.DateTimeFormat(language === 'pt' ? 'pt-BR' : 'en', {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(new Date('2026-10-05T12:00:00'));
+      const expected = (credited ? copy.moveCreditedHelp : copy.moveBeforeHelp)
+        .replace('{date}', () => date)
+        .replace('{source}', () => source)
+        .replace('{target}', () => target);
+      const explanation = page.locator('.review-supporting > p').filter({ hasText: expected });
+      await expect(explanation).toHaveText(expected);
+      expect(await explanation.textContent()).toBe(expected);
+      expect(before.pillars.find((pillar) => pillar.id === 'mind')!.nameOverride).toBe(target);
+      expect(before.pillars.find((pillar) => pillar.id === 'body')!.nameOverride).toBe(source);
+      expect(await readDataset(page)).toEqual(before);
+    });
+  }
   test(`Management actions preserve literal goal and pillar accessible names ${language}`, async ({
     page,
   }) => {

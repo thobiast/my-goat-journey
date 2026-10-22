@@ -282,6 +282,9 @@ and reset require `expectedRevision`.
 `progressInterval`. Fresh/reset defaults are English, reduced motion false and
 no stored interval preference. There are no reminder or theme settings.
 
+- `Repository.setSettings` preserves omitted fields but rejects explicitly present
+  invalid values, including `language: undefined` and `reducedMotion: undefined`.
+  `false` is a valid motion choice; rejection preserves all facts and revision.
 - Progress defaults to **7d** or the last valid explicitly selected interval:
   `7d`, `1m`, `3m`, `12m`, `24m`.
 - `progressIntervalOrDefault` resolves missing/invalid values to `7d`.
@@ -495,6 +498,10 @@ replacement, with validation repeated inside the transaction.
 - Habit actions are **Move / Review / Archive**. Pillar actions are
   **Rename / Streaks / Remove**; contextual Add habit belongs only in the card
   footer.
+- Saving a Rename form with its exact initial text finishes without persistence
+  and restores origin focus, including after editing and reverting. Default pillars
+  without `nameOverride` keep localizing; existing overrides and custom names stay
+  literal. Only blank-name validation trims whitespace; stored names are unchanged.
 - The Streaks action is labeled **View pillar streaks** and opens the pillar's
   streak/history view with its pillar name as the heading.
 - The history header retains pillar identity and real current/best streaks but
@@ -676,6 +683,10 @@ Settings groups actions into flat **Preferences**, **Backup & restore** and
 replacement/deletion confirmations with Cancel and focus restoration. Portable
 private backups, revision-bound atomic replacement, rollback on invalid/stale/
 failed operations and separately confirmed reset follow the contracts above.
+After successful replacement with a completed profile, Settings' stable heading
+receives focus once after the form remount, without scrolling. Recovery is bound
+to that operation/route, not ordinary renders, language changes or refreshes.
+Cancellation and invalid-file feedback retain their existing focus behavior.
 
 Feedback retains semantic message identifiers, translated with the current
 language during rendering. Language changes retain and translate existing

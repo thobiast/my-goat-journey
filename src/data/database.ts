@@ -287,9 +287,9 @@ export class Repository {
   }
   async setSettings(patch: Partial<Settings>, expectedRevision?: number): Promise<Dataset> {
     return this.transact((data) => {
-      if (patch.language !== undefined && patch.language !== 'en' && patch.language !== 'pt')
+      if (Object.hasOwn(patch, 'language') && patch.language !== 'en' && patch.language !== 'pt')
         throw new Error('Invalid language');
-      if (patch.reducedMotion !== undefined && typeof patch.reducedMotion !== 'boolean')
+      if (Object.hasOwn(patch, 'reducedMotion') && typeof patch.reducedMotion !== 'boolean')
         throw new Error('Invalid accessibility setting');
       if (Object.hasOwn(patch, 'progressInterval') && !isProgressInterval(patch.progressInterval))
         throw new Error('Invalid Progress interval');

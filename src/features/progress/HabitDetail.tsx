@@ -87,8 +87,8 @@ export function HabitDetail({
     !future && moved && moveDate
       ? moveTemplate
           .replace('{date}', displayDate(moveDate, data.settings.language))
-          .replace('{source}', name(currentItem?.pillarId ?? membership.pillarId))
-          .replace('{target}', name(moved.pillarId))
+          .replace('{source}', () => name(currentItem?.pillarId ?? membership.pillarId))
+          .replace('{target}', () => name(moved.pillarId))
       : undefined;
   const pending =
     !future &&
