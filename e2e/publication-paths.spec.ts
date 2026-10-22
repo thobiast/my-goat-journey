@@ -209,7 +209,7 @@ async function verifyLanding(page: Page, publication: Publication) {
   const response = await page.goto(publication.landingURL);
   expect(response?.status()).toBe(200);
   expect(page.url()).toBe(publication.landingURL);
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('One step today.');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Small habits.');
   const link = page.getByRole('link', { name: 'Open the app', exact: true });
   await expect(link).toHaveAttribute('href', 'app/');
   expect(await link.evaluate((element: HTMLAnchorElement) => element.href)).toBe(
@@ -551,7 +551,7 @@ test('isolated legacy root fallback can mask landing until exact owner retiremen
   expect(await readDataset(app)).toEqual(saved);
   const landing = await context.newPage();
   expect((await landing.goto(publication.landingURL))?.status()).toBe(200);
-  await expect(landing.getByRole('heading', { level: 1 })).toContainText('One step today.');
+  await expect(landing.getByRole('heading', { level: 1 })).toContainText('Small habits.');
   expect(await landing.evaluate(() => navigator.serviceWorker.controller?.scriptURL)).toBe(
     publication.origin + legacyScript,
   );

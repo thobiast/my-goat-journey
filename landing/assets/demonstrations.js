@@ -1,5 +1,5 @@
 // Deliberately standalone: no imports from the app, database, or PWA modules.
-const pillars = ['mind', 'body', 'mind', 'hygiene', 'body', 'body', 'mind', 'nutrition', 'body', 'mind', 'mind', 'mind'];
+const pillars = ['mind', 'body', 'nutrition', 'hygiene', 'body', 'body', 'mind', 'mind', 'body', 'mind', 'mind', 'mind'];
 const colors = { mind: '#574776', body: '#8a3e4b', nutrition: '#77502f', hygiene: '#245a78' };
 const shapes = {
   mind: 'M12 5C10 2 5 3 5 7C1 8 2 13 5 14C3 19 8 22 12 19M12 5C14 2 19 3 19 7C23 8 22 13 19 14C21 19 16 22 12 19M12 5V19M5 7L8 9L7 12M19 7L16 9L17 12M5 14L9 15M19 14L15 15',
@@ -22,13 +22,19 @@ const put = (root, selector, value) => { root.querySelector(selector).textConten
 
 export function createDemonstrations(getCopy, onChange) {
   let selected = 0;
-  const completed = new Set([7]);
+  const completed = new Set([2]);
   let feedback = false;
   let expiry;
   const demos = [document.querySelector('#hero-demo'), document.querySelector('#tour-today')];
   const strip = document.querySelector('#journey-strip');
   const ideas = [];
   let ids;
+
+  document.querySelectorAll('.pillar-summaries [data-pillar]').forEach(item => {
+    const kind = item.dataset.pillar;
+    item.style.setProperty('--pillar', colors[kind]);
+    item.querySelector('.pillar-symbol').innerHTML = icon(kind);
+  });
 
   for (let id = 0; id < 12; id++) {
     const button = document.createElement('button');
@@ -55,7 +61,7 @@ export function createDemonstrations(getCopy, onChange) {
   strip.innerHTML = '<div class="strip-top"><strong></strong><span></span></div><progress max="100" value="60"></progress><div class="strip-bottom"><span></span><span></span></div>';
 
   function buildRows() {
-    ids = [selected, ...[0, 1, 7, 3].filter(id => id !== selected)].slice(0, 4);
+    ids = [selected, ...[0, 1, 2, 3].filter(id => id !== selected)].slice(0, 4);
     demos.forEach((demo, demoIndex) => {
       const groups = demo.querySelector('.demo-groups');
       groups.replaceChildren();

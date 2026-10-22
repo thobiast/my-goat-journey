@@ -8,6 +8,38 @@ async function chooseLanguage(page: Page, language: string) {
     .click();
 }
 
+test('English fallback and paired translations keep the product identity without app code', async ({
+  browser,
+  baseURL,
+  page,
+}) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  try {
+    const fallback = await context.newPage();
+    await fallback.goto(baseURL!);
+    await expect(fallback.locator('h1')).toHaveText('Small habits. A greater you.');
+    await expect(fallback).toHaveTitle('My GOAT Journey — Small habits. A greater you.');
+    await expect(fallback.locator('#pillars li h3')).toHaveText([
+      'Mind',
+      'Body',
+      'Nutrition',
+      'Hygiene',
+    ]);
+  } finally {
+    await context.close();
+  }
+  await page.goto('./');
+  const catalog = await page.evaluate(async () => {
+    const { copy } = await import(new URL('assets/translations.js', location.href).href);
+    return { en: Object.keys(copy.en).sort(), pt: Object.keys(copy['pt-BR']).sort() };
+  });
+  expect(catalog.en).toEqual(catalog.pt);
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+    'content',
+    'Build meaningful habits across different areas of life. Track your consistency and follow your journey up the mountain. No account required.',
+  );
+});
+
 for (const language of ['en', 'pt-BR']) {
   for (const width of [320, 390, 1440]) {
     test(`color header symbol ${language} ${width}px`, async ({ page, context, baseURL }) => {
@@ -74,12 +106,12 @@ test('canonical pillar geometry is reused in every idea and both Today demonstra
   const mapping = [
     'mind',
     'body',
-    'mind',
+    'nutrition',
     'hygiene',
     'body',
     'body',
     'mind',
-    'nutrition',
+    'mind',
     'body',
     'mind',
     'mind',
@@ -87,6 +119,15 @@ test('canonical pillar geometry is reused in every idea and both Today demonstra
   ];
   await page.goto('./');
   await expect(page.locator('.idea')).toHaveCount(12);
+  for (const kind of ['mind', 'body', 'nutrition', 'hygiene']) {
+    const item = page.locator(`#pillars [data-pillar="${kind}"]`);
+    expect(
+      await item
+        .locator('svg path')
+        .evaluateAll((paths) => paths.map((path) => path.getAttribute('d'))),
+    ).toEqual(expected[kind]);
+    await expect(item.locator('svg')).toHaveAttribute('aria-hidden', 'true');
+  }
   for (let i = 0; i < mapping.length; i++) {
     expect(
       await page
@@ -108,6 +149,70 @@ test('canonical pillar geometry is reused in every idea and both Today demonstra
       ).toEqual(expected[kind]);
       await expect(icon).toHaveAttribute('aria-hidden', 'true');
     }
+  }
+});
+
+test('pillars introduce life areas before the tour and all four initial ideas', async ({
+  page,
+}) => {
+  await page.goto('./');
+  for (const language of ['en', 'pt-BR']) {
+    await chooseLanguage(page, language);
+    const english = language === 'en';
+    const pillars = page.locator('#pillars');
+    await expect(pillars.getByRole('heading', { level: 2 })).toHaveText(
+      english ? 'Every habit shapes your journey.' : 'Cada hábito dá forma à sua jornada.',
+    );
+    expect(
+      await pillars.evaluate((node) => ({
+        before: node.previousElementSibling?.className,
+        after: node.nextElementSibling?.id,
+      })),
+    ).toEqual({ before: 'trust-strip', after: 'tour' });
+    await expect(pillars.locator('li h3')).toHaveText(
+      english
+        ? ['Mind', 'Body', 'Nutrition', 'Hygiene']
+        : ['Mente', 'Corpo', 'Nutrição', 'Higiene'],
+    );
+    await expect(pillars.locator('li p')).toHaveText(
+      english
+        ? [
+            'Learning and reflection.',
+            'Movement and physical activity.',
+            'Eating habits.',
+            'Everyday personal care.',
+          ]
+        : [
+            'Aprendizado e reflexão.',
+            'Movimento e atividade física.',
+            'Hábitos de alimentação.',
+            'Cuidados pessoais do dia a dia.',
+          ],
+    );
+    await expect(pillars).toContainText(
+      english ? 'create your own pillars' : 'criar seus próprios pilares',
+    );
+    await expect(pillars.locator('button, a, [tabindex]')).toHaveCount(0);
+    await expect(page.locator('#initial-ideas strong')).toHaveText(
+      english
+        ? ['Read a book', 'Walk', 'Eat a piece of fruit', 'Floss']
+        : ['Ler um livro', 'Caminhar', 'Comer uma fruta', 'Usar fio dental'],
+    );
+    await expect(page.locator('#initial-ideas .goal')).toHaveText(
+      english
+        ? ['10 pages', '20 minutes', 'Afternoon snack', 'Before bed']
+        : ['10 páginas', '20 minutos', 'Lanche da tarde', 'Antes de dormir'],
+    );
+    await expect(page.locator('#initial-ideas .frequency')).toHaveText(
+      english
+        ? ['Every day', 'Mon, Wed, Fri', 'Every day', 'Every day']
+        : ['Todos os dias', 'Seg, Qua, Sex', 'Todos os dias', 'Todos os dias'],
+    );
+    const names = await page.locator('.idea strong').allTextContents();
+    expect(new Set(names).size).toBe(12);
+    await expect(page.locator('#additional-ideas strong').nth(3)).toHaveText(
+      english ? 'Practice English' : 'Praticar inglês',
+    );
   }
 });
 
@@ -172,7 +277,12 @@ test('compact editorial composition starts with Progress and preserves tour stat
   for (const language of ['en', 'pt-BR']) {
     await chooseLanguage(page, language);
     await expect(page.locator('h1 em')).toHaveText(
-      language === 'en' ? 'A journey of your own.' : 'Um caminho seu.',
+      language === 'en' ? 'A greater you.' : 'Uma versão melhor de você.',
+    );
+    await expect(page.locator('.hero .lead')).toHaveText(
+      language === 'en'
+        ? 'Build meaningful habits across different areas of life. Track your consistency, celebrate your progress, and follow your journey up the mountain.'
+        : 'Crie hábitos em diferentes áreas da vida. Acompanhe sua constância, celebre seu progresso e avance na sua jornada pela montanha.',
     );
     expect(
       await page.locator('h1 em').evaluate((node) => ({
@@ -307,7 +417,7 @@ for (const language of ['en', 'pt-BR']) {
           const geometry = await page.evaluate(() => {
             const visible = [
               ...document.querySelectorAll<HTMLElement>(
-                'main, header, footer, button, select, summary, .habit-name, .calendar-weekdays > span, h1, h2, .button',
+                'main, header, footer, button, select, summary, .habit-name, .calendar-weekdays > span, h1, h2, .button, .pillar-summaries li, .pillar-summaries p, .level-name, .level-state',
               ),
             ].filter((node) => node.getClientRects().length);
             return {
@@ -330,6 +440,11 @@ for (const language of ['en', 'pt-BR']) {
           expect(geometry.outside, JSON.stringify(geometry)).toEqual([]);
           expect(geometry.page).toBeLessThanOrEqual(geometry.viewport + 1);
           await expect(page.locator('.habit-name').first()).not.toBeEmpty();
+          if (view === 'journey' && [390, 1440].includes(width)) {
+            await page.locator('#journey-view').screenshot({
+              path: `artifacts/landing-messaging/screenshots/${language}-${width}-${scale}-journey.png`,
+            });
+          }
           if (scale === 2 && width === 320) {
             await page.locator(`#${view}-view`).screenshot({
               path: `artifacts/landing-refinement/screenshots/${language}-${width}-large-${view}.png`,
@@ -609,6 +724,45 @@ test('narrow header retains the real application entry', async ({ page }) => {
   ).toBeVisible();
 });
 
+test('tour copy invites action and mountain signs retain accurate progression', async ({
+  page,
+}) => {
+  await page.goto('./');
+  for (const language of ['en', 'pt-BR']) {
+    await chooseLanguage(page, language);
+    const english = language === 'en';
+    await page.locator('[data-view="journey"]').click();
+    await expect(page.locator('#tour-description')).toHaveText(
+      english
+        ? 'See your effort take shape. Complete habits, earn XP, and follow your progress along the mountain trail.'
+        : 'Veja seu esforço ganhar forma. Conclua hábitos, ganhe XP e acompanhe seu progresso pela trilha da montanha.',
+    );
+    await expect(page.locator('.mountain-contour')).toHaveCount(1);
+    await expect(page.locator('.trail-drawing')).toHaveAttribute('aria-hidden', 'true');
+    const states = english
+      ? ['Current level', 'Ahead', 'Ahead']
+      : ['Nível atual', 'À frente', 'À frente'];
+    await expect(page.locator('.level-state')).toHaveText(states);
+    for (let level = 1; level <= 3; level++) {
+      await expect(page.locator(`[data-level="${level}"]`)).toHaveAccessibleDescription(
+        states[level - 1],
+      );
+    }
+    for (const xp of [60, 70]) {
+      if (xp === 70) await page.locator('#hero-demo input').first().check();
+      await expect(page.locator('#journey-view progress')).toHaveAttribute('value', String(xp));
+      const distance = await page.locator('.trail-drawing').evaluate((svg, xp) => {
+        const path = svg.querySelector<SVGPathElement>('.trail-traveled')!;
+        const marker = svg.querySelector<SVGCircleElement>('.trail-position')!;
+        const point = path.getPointAtLength((path.getTotalLength() * xp) / 200);
+        return Math.hypot(point.x - marker.cx.baseVal.value, point.y - marker.cy.baseVal.value);
+      }, xp);
+      expect(distance).toBeLessThan(0.01);
+    }
+    await page.locator('#hero-demo input').first().uncheck();
+  }
+});
+
 test('tour exposes localized calendar details and bounded level states without losing selection', async ({
   page,
 }) => {
@@ -661,6 +815,16 @@ test('twelve illustrative choices update an isolated checklist with coherent XP 
       await expect(idea).toHaveAttribute('aria-pressed', 'true');
       await expect(hero.locator('.habit-name').first()).toHaveText(action!);
       await expect(hero.locator('.habit-detail').first()).toContainText(frequency!);
+      const ideaGeometry = await idea
+        .locator('svg path')
+        .evaluateAll((paths) => paths.map((path) => path.getAttribute('d')));
+      expect(
+        await hero
+          .locator('.demo-group')
+          .first()
+          .locator('.group-heading svg path')
+          .evaluateAll((paths) => paths.map((path) => path.getAttribute('d'))),
+      ).toEqual(ideaGeometry);
     }
   }
   for (const check of await hero.getByRole('checkbox').all()) await check.check();
@@ -686,9 +850,7 @@ test('English first visit ignores browser language; explicit Portuguese selectio
     .context()
     .addInitScript(() => Object.defineProperty(navigator, 'language', { value: 'pt-BR' }));
   await page.goto('./');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-    'One step today. A journey of your own.',
-  );
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Small habits. A greater you.');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   const english = page.getByRole('button', { name: 'English', exact: true });
   await expect(english).toHaveAttribute('aria-pressed', 'true');
@@ -702,7 +864,7 @@ test('English first visit ignores browser language; explicit Portuguese selectio
   expect(await language.evaluate((node) => getComputedStyle(node).outlineStyle)).not.toBe('none');
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-    'Um passo hoje. Um caminho seu.',
+    'Pequenos hábitos. Uma versão melhor de você.',
   );
   await expect(page.locator('html')).toHaveAttribute('lang', 'pt-BR');
   await expect(language).toBeFocused();
@@ -713,15 +875,15 @@ test('English first visit ignores browser language; explicit Portuguese selectio
   );
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('lang', 'pt-BR');
-  await expect(page).toHaveTitle('My GOAT Journey — um caminho seu');
+  await expect(page).toHaveTitle('My GOAT Journey — Pequenos hábitos. Uma versão melhor de você.');
   await expect(page.locator('meta[name="description"]')).toHaveAttribute(
     'content',
-    /Construa hábitos/,
+    'Crie hábitos em diferentes áreas da vida. Acompanhe sua constância e avance na sua jornada pela montanha. Sem necessidade de conta.',
   );
   await english.focus();
   await page.keyboard.press('Space');
   await expect(english).toBeFocused();
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-  await expect(page).toHaveTitle('My GOAT Journey — a journey of your own');
+  await expect(page).toHaveTitle('My GOAT Journey — Small habits. A greater you.');
 });

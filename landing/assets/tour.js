@@ -48,6 +48,7 @@ export function createTour(getCopy, getXP) {
   journey.innerHTML = `<div class="app-preview journey-preview"><div class="calendar-heading"><h4></h4><span class="journey-xp"></span></div><p class="trail-caption"></p>
     <div class="journey-range"><strong></strong><span></span></div><progress max="100" value="60"></progress><p class="journey-remaining"></p>
     <svg class="trail-drawing" viewBox="0 0 300 165" aria-hidden="true" focusable="false">
+      <path class="mountain-contour" d="M6 151L58 67L89 99L158 8L211 82L245 47L294 151ZM117 62L158 8L183 43L159 34L145 50L137 43Z"/>
       <path class="trail-base" d="M20 140C40 140 20 90 90 90S150 70 150 65S220 65 235 30S265 20 280 20"/>
       <path class="trail-traveled" pathLength="200" d="M20 140C40 140 20 90 90 90S150 70 150 65S220 65 235 30S265 20 280 20"/>
       <circle cx="20" cy="140" r="6"/><circle cx="150" cy="65" r="6"/><circle cx="280" cy="20" r="6"/>
@@ -57,6 +58,9 @@ export function createTour(getCopy, getXP) {
     const button = document.createElement('button');
     button.type = 'button';
     button.dataset.level = level;
+    button.innerHTML = '<span class="level-name"></span><span class="level-state"></span>';
+    button.querySelector('.level-state').id = `level-state-${level}`;
+    button.setAttribute('aria-describedby', `level-state-${level}`);
     button.addEventListener('click', () => { selectedLevel = level; update(); });
     journey.querySelector('.level-choices').append(button);
   }
@@ -104,7 +108,10 @@ export function createTour(getCopy, getXP) {
     journey.querySelector('progress').setAttribute('aria-label', t.journey);
     journey.querySelector('.journey-remaining').textContent = `${100 - xp} ${t.remaining}`;
     journey.querySelectorAll('[data-level]').forEach(button => {
-      button.textContent = `${t.level} ${button.dataset.level}`;
+      const label = `${t.level} ${button.dataset.level}`;
+      button.querySelector('.level-name').textContent = label;
+      button.querySelector('.level-state').textContent = Number(button.dataset.level) === 1 ? t.current : t.ahead;
+      button.setAttribute('aria-label', label);
       button.setAttribute('aria-pressed', String(Number(button.dataset.level) === selectedLevel));
     });
     journey.querySelector('.level-choices').setAttribute('aria-label', t.trail);

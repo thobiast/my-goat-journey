@@ -223,7 +223,7 @@ test('landing is responsive, local-only and does not access diary storage', asyn
     const response = await page.goto(`${origin}${landingPath}`);
     expect(response?.status()).toBe(200);
     expect(await response!.text()).toBe(await readFile('landing/index.html', 'utf8'));
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('One step today.');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Small habits.');
     for (const image of await page.locator('img').all()) {
       await image.scrollIntoViewIfNeeded();
       await expect
