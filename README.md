@@ -4,11 +4,17 @@
 
 <h1 align="center">My GOAT Journey</h1>
 
-<p align="center"><strong>Small commitments. Your own journey.</strong></p>
+<p align="center"><strong>Small habits. A greater you.</strong></p>
 
 <p align="center">
-  A local-first habit tracker with flexible weekday schedules and visible progress.<br>
-  Choose your habits, check off today's commitments, and follow your mountain journey.
+  Build meaningful habits across different areas of life, organized into pillars.<br>
+  Track your consistency, celebrate your progress, and follow your journey up the mountain.
+</p>
+
+<p align="center">Start with just one habit — you don't need to fill every pillar.</p>
+
+<p align="center">
+  No account required · Flexible weekday schedules · Habit records stored in your browser
 </p>
 
 <p align="center">
@@ -27,7 +33,7 @@
 ## Screenshots
 
 Today, Pillars and Progress with fictional sample data. Select an image to view it
-full size. [Capture notes](docs/screenshots/readme/README.md).
+full size.
 
 <p>
   <a href="docs/screenshots/readme/today-en.png"><img src="docs/screenshots/readme/today-en.png" width="260" align="top" alt="Today checklist grouped by pillar, with completed and pending habits"></a>
@@ -35,45 +41,52 @@ full size. [Capture notes](docs/screenshots/readme/README.md).
   <a href="docs/screenshots/readme/progress-en.png"><img src="docs/screenshots/readme/progress-en.png" width="260" align="top" alt="Progress calendars showing completed days and current and best habit streaks"></a>
 </p>
 
+## Habits that fit your life
+
+Every habit shapes your journey. You choose the habits and frequency; here are a few ideas to get started.
+
+| Pillar | Habit | Schedule |
+|---|---|---|
+| Mind | Read 10 pages | Every day |
+| Mind | Practice English for 15 minutes | Weekdays |
+| Body | Exercise for 45 minutes | Monday, Wednesday, Friday |
+| Body | Do 30 push-ups | Tuesday, Thursday, Saturday |
+| Nutrition | Eat a piece of fruit with breakfast | Every day |
+| Nutrition | Add vegetables to lunch | Every day |
+| Hygiene | Floss before bed | Every day |
+| Hygiene | Replace your bed sheets | Saturday |
+
 ## What you can do
 
-- Schedule habits every day or on selected weekdays, with days off left out of your commitments.
-- Organize multiple habits under Mind, Body, Nutrition and Hygiene, or create your own pillars.
-- See what's due in a clear daily checklist and check off each completed goal.
-- Review consistency calendars and current/best streaks for habits, pillars and your daily agenda.
-- Earn XP and milestone bonuses, gain levels, and follow your progress up the mountain.
-- Keep records locally, export backups, and install the app for offline use after setup.
-- Available in English and Brazilian Portuguese. Your goals and pillar names stay as entered.
+- Make room for what matters with custom pillars and multiple habits per pillar.
+- Focus on what's due today with a checklist grouped by pillar.
+- Spot patterns in consistency calendars and current/best streaks for habits, pillars and your daily agenda.
+- Celebrate completed goals with XP, milestone bonuses, levels and a mountain journey.
+- Use the app in English or Brazilian Portuguese; your goals and pillar names stay as entered.
 
-Start with just one habit; you don't need to fill every pillar. See the
-[product specification](docs/product-specification.md) for scheduling, corrections
-and retained history. Completion is self-reported. This is not a clinical tool,
-and XP and levels do not measure health, intelligence or personal worth.
+See the [product specification](docs/product-specification.md) for scheduling,
+corrections and retained history. Completion is self-reported. This is not a
+clinical tool, and XP and levels do not measure health, intelligence or personal worth.
 
 ## Your data and offline use
 
-You don't need an account or login. Habit records stay in your device's browser
-profile, in IndexedDB. There is no application-server diary, cross-device sync,
-advertising or application telemetry. Each browser profile and origin has its own
-records; changing device, hostname or port does not move them.
+No account or login is needed. Records stay local to your device's browser profile
+and origin, with no cross-device synchronization. Browser storage can be lost
+through clearing site data, eviction or removing an installation, so **export
+backups regularly** in Settings. Exported files contain your goals and history
+and are not encrypted by the app; keep them private. The
+[backup and storage guide](docs/pwa-reliability.md#backup-storage-identity-and-moving-a-diary)
+explains storage identity, safe transfers and validated, confirmed restore that
+**replaces, never merges**, local records.
 
-You control JSON backup export and restore in Settings. Restore validates the
-file and asks before **replacing, never merging**, local records. Exported files
-contain your goals and history and are not encrypted by the app; keep them private
-wherever you choose to save or share them. Clearing browser/site data, storage
-eviction or removing an installation can lose records, so export backups regularly.
-See the [backup and storage guide](docs/pwa-reliability.md#backup-storage-identity-and-moving-a-diary)
-for file limits and safe transfers.
-
-Open the [app](https://thobiast.github.io/my-goat-journey/app/) online, let offline
-preparation finish, then reopen it once while still online. You can add it to your
-Home Screen on iPhone with **Share → Add to Home Screen**, or use your browser's
-install option where available. After preparation, core screens and habit tracking
-work offline while browser storage remains available. The landing page requires
-a connection. Offline use requires the compiled production app and a supported
-browser in a secure context (trusted HTTPS or browser-recognized loopback).
-See [installation and troubleshooting](docs/pwa-reliability.md#first-installation-and-offline-continuity)
-for details.
+For offline use, open the production app online, let offline preparation finish,
+then reopen it once while still online. Core tracking can then work offline while
+browser storage remains available. **Installation is optional** and does not by
+itself guarantee offline readiness or permanent storage. The landing page requires
+a connection. See [offline setup](docs/pwa-reliability.md#first-installation-and-offline-continuity),
+[secure-context requirements](docs/pwa-reliability.md#production-and-development-operation)
+and [troubleshooting](docs/pwa-reliability.md#troubleshooting) for supported browsers
+and help.
 
 ## Run locally
 
@@ -140,24 +153,14 @@ are future work, not shipped features.
 ## Hosting and CI
 
 Source code: [thobiast/my-goat-journey](https://github.com/thobiast/my-goat-journey).
-The landing page and app are available on GitHub Pages:
+GitHub Pages hosts the [landing page](https://thobiast.github.io/my-goat-journey/)
+and [app](https://thobiast.github.io/my-goat-journey/app/).
 
-- Landing: https://thobiast.github.io/my-goat-journey/
-- App: https://thobiast.github.io/my-goat-journey/app/
-
-The [Check and build workflow](.github/workflows/check-build.yml)
-installs locked dependencies, checks TypeScript formatting and lint, runs type
-checking and the ordinary unit suite, and
-builds the shared landing/PWA artifact. It checks lockfile integrity and distributed
-license/notices, retaining a review artifact only for manual runs on the default
-branch. It **does not deploy** or run container/nginx or browser integration checks.
-
-The separate [Publish GitHub Pages (manual) workflow](.github/workflows/publish-pages.yml)
-validates, builds and deploys the shared artifact only when manually run from
-`main`. Pushes and pull requests do not deploy. See the
-[CI command mapping](docs/development.md#github-hosted-application-ci) and
-[manual Pages instructions](docs/development.md#manual-github-pages-publication)
-for maintainer details.
+[Check and build](.github/workflows/check-build.yml) validates and builds without
+deploying; [Pages publication](.github/workflows/publish-pages.yml) is a separate
+manual workflow. See [CI details](docs/development.md#github-hosted-application-ci)
+and [publication instructions](docs/development.md#manual-github-pages-publication)
+for workflow behavior, coverage and deployment procedures.
 
 ## License and artwork
 
