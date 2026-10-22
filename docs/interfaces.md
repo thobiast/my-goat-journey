@@ -35,9 +35,25 @@ have separate responsibilities:
   Archive-day exemption excuses unfinished participation only; retained completed
   credit still counts. A lock alone must not be treated as a completion.
 
-`src/domain/calendar.ts` exports `deviceClock`, `localDate`, `weekday`,
-`parseLocalDate` and `nextScheduledDate`. Device-local dates refresh at midnight,
-open, resume and focus. Production exposes no clock or injected-failure settings.
+`src/domain/calendar.ts` separates instant and civil-calendar operations:
+
+- `deviceClock` supplies actual instants; `localDate(instant)` reads the device's
+  local date for Today and command request dates. Today refreshes at local midnight,
+  open, resume and focus; it is not derived from UTC midnight.
+- `parseLocalDate` strictly validates a Gregorian `YYYY-MM-DD` in `0100`–`9999`
+  and returns a **UTC-backed civil-calendar carrier**, not a device-local instant.
+  Use UTC getters/setters for that carrier and `civilDate(carrier)` to read its
+  civil identity. Never pass it through `localDate` or local getters.
+- `weekday`, `nextScheduledDate`, historical iteration and day/month arithmetic
+  use the civil calendar independently of the current zone. A zone's historical
+  skipped day is still a valid stored date; invalid Gregorian dates reject.
+- Format carriers with explicit `timeZone: 'UTC'` and the selected language so
+  labels retain the intended day and weekday. Actual timestamp displays, recording
+  metadata and export timestamps keep their existing instant semantics.
+
+Stored strings and schemas do not change. No date shifts, source-zone fields,
+history repair or migration are needed. Production exposes no clock or
+injected-failure settings.
 
 ### Pillar removal and retained history
 
@@ -315,6 +331,10 @@ no stored interval preference. There are no reminder or theme settings.
   identities/references, historical definitions, memberships, activation periods,
   participation, provenance, exemptions, pending intents, settings, drafts and
   unique ownership. Imported objects are not simply cast to domain types.
+- Current and supported legacy dates share strict civil-calendar validation and
+  timezone-independent replay. Export, parsing and replacement preserve the dated
+  facts even when the current device zone historically skipped one of those days.
+  `exportedAt` remains an actual timestamp, not a civil-calendar carrier.
 - Incomplete drafts normalize to four ordered default slots, preserving supplied
   text/masks and filling missing blank goals with the standard all-seven-day
   default. Inclusion remains separate from draft content.

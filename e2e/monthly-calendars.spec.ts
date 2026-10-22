@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
-import { localDate, parseLocalDate } from '../src/domain/calendar';
+import { civilDate, parseLocalDate } from '../src/domain/calendar';
 import { periodWindow, type Interval } from '../src/features/progress/calendar';
 import { archiveHabit, reactivateHabit } from '../src/domain/lifecycle';
 import { restoreCalendarHistory } from './support/calendar-history';
@@ -36,7 +36,9 @@ const detail = (page: Page) => page.locator('main.progress-day-page');
 const locale = (language: 'en' | 'pt') => (language === 'pt' ? 'pt-BR' : 'en');
 
 const fullDate = (date: string, language: 'en' | 'pt' = 'en') =>
-  new Intl.DateTimeFormat(locale(language), { dateStyle: 'full' }).format(parseLocalDate(date));
+  new Intl.DateTimeFormat(locale(language), { timeZone: 'UTC', dateStyle: 'full' }).format(
+    parseLocalDate(date),
+  );
 
 async function noManualEntry(page: Page, language: 'en' | 'pt' = 'en') {
   await expect(main(page).locator('input[type="date"], input[type="datetime-local"]')).toHaveCount(
@@ -239,10 +241,10 @@ function monthsInWindow(today: string, interval: Interval, offset = 0) {
   const window = periodWindow(today, interval, offset);
   const cursor = parseLocalDate(window.start);
   const months: string[] = [];
-  while (localDate(cursor) <= window.end) {
-    const month = localDate(cursor).slice(0, 7);
+  while (civilDate(cursor) <= window.end) {
+    const month = civilDate(cursor).slice(0, 7);
     if (!months.includes(month)) months.push(month);
-    cursor.setDate(cursor.getDate() + 1);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return { months, window };
 }
@@ -504,10 +506,10 @@ test('Arrow keys reach historical pillar days across inactive archival gaps with
   await setupScheduledHabits(page);
   const data = await readDataset(page);
   const habit = data.habits[0];
-  archiveHabit(data, habit.id, parseLocalDate('2026-09-30'));
-  reactivateHabit(data, habit.id, parseLocalDate('2026-10-17'));
-  archiveHabit(data, habit.id, parseLocalDate('2026-10-21'));
-  reactivateHabit(data, habit.id, parseLocalDate('2026-11-07'));
+  archiveHabit(data, habit.id, new Date('2026-09-30T12:00:00'));
+  reactivateHabit(data, habit.id, new Date('2026-10-17T12:00:00'));
+  archiveHabit(data, habit.id, new Date('2026-10-21T12:00:00'));
+  reactivateHabit(data, habit.id, new Date('2026-11-07T12:00:00'));
   await onDate(page, '2026-12-01');
   await nav(page, 'Settings').click();
   const { revision: _, ...portable } = data;

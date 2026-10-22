@@ -1,5 +1,5 @@
 import { createAgendaProjection, type AgendaProjection } from './agenda';
-import { localDate, parseLocalDate } from './calendar';
+import { civilDate, parseLocalDate } from './calendar';
 import type { AgendaItem, CompatibleDataset, LocalDate } from './types';
 
 export type HistoryStatus = 'completed' | 'missed' | 'pending' | 'optional-uncompleted' | 'exempt';
@@ -19,11 +19,12 @@ export function editableOccurrences(
   const habit = projection.data.habits.find((h) => h.id === habitId);
   const cursor = parseLocalDate(today);
   if (!habit) return [];
+  const firstDate = parseLocalDate(habit.createdOn);
   const result: AgendaItem[] = [];
   for (
-    let date = localDate(cursor);
-    date >= habit.createdOn;
-    cursor.setDate(cursor.getDate() - 1), date = localDate(cursor)
+    let date = civilDate(cursor);
+    cursor >= firstDate;
+    cursor.setUTCDate(cursor.getUTCDate() - 1), date = civilDate(cursor)
   ) {
     const item = projection.habit(habitId, date);
     if (item && (!item.exempt || item.completionProvenance === 'credited')) {
@@ -42,12 +43,13 @@ function projectHabitHistory(
   const habit = projection.data.habits.find((h) => h.id === habitId);
   const cursor = parseLocalDate(today);
   if (!habit) return [];
+  const firstDate = parseLocalDate(habit.createdOn);
   const rows: HabitHistoryItem[] = [];
   let foundPrevious = false;
   for (
-    let date = localDate(cursor);
-    date >= habit.createdOn;
-    cursor.setDate(cursor.getDate() - 1), date = localDate(cursor)
+    let date = civilDate(cursor);
+    cursor >= firstDate;
+    cursor.setUTCDate(cursor.getUTCDate() - 1), date = civilDate(cursor)
   ) {
     const item = projection.habit(habitId, date);
     if (!item) continue;

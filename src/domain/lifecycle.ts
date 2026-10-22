@@ -9,7 +9,7 @@ import {
 import { newIdentity } from './identity';
 import { DatasetError } from './errors';
 import { requireActivePillar } from './pillars';
-import { localDate, parseLocalDate } from './calendar';
+import { civilDate, localDate, parseLocalDate } from './calendar';
 import { updateCompletion } from './completion';
 import type { Dataset, GoalInput, Habit, LocalDate } from './types';
 
@@ -26,8 +26,8 @@ function requestDate(now: Date): LocalDate {
 
 function tomorrow(today: LocalDate): LocalDate {
   const date = parseLocalDate(today);
-  date.setDate(date.getDate() + 1);
-  return localDate(date);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return civilDate(date);
 }
 
 function normalizeInput(data: Dataset, input: GoalInput): GoalInput {

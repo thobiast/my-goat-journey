@@ -1,4 +1,4 @@
-import { localDate, parseLocalDate } from '../../domain/calendar';
+import { civilDate, parseLocalDate } from '../../domain/calendar';
 import {
   activationAt,
   createAgendaProjection,
@@ -48,13 +48,14 @@ export function calendarCards(
 ): CalendarDay[][] {
   const cards: CalendarDay[][] = scopes.map(() => []);
   const cursor = parseLocalDate(window.start);
+  const lastDate = parseLocalDate(window.historyEnd);
   if (!scopes.length) return cards;
   const projection = createAgendaProjection(data);
   const habits = new Map(data.habits.map((habit) => [habit.id, habit]));
   for (
-    let date = localDate(cursor);
-    date <= window.historyEnd;
-    cursor.setDate(cursor.getDate() + 1), date = localDate(cursor)
+    let date = civilDate(cursor);
+    cursor <= lastDate;
+    cursor.setUTCDate(cursor.getUTCDate() + 1), date = civilDate(cursor)
   ) {
     const allItems = projection.agenda(date);
     const byHabit = new Map<string, AgendaItem[]>();
@@ -111,15 +112,15 @@ export function calendarDays(
 
 /** Participation includes unchecked optional opportunities and real off-days, not just saved credit. */
 export function hasEarlierHistory(data: Dataset, scope: CalendarScope, start: LocalDate): boolean {
-  parseLocalDate(start);
+  const lastDate = parseLocalDate(start);
   const first = data.habits.map((habit) => habit.createdOn).sort()[0];
   if (!first || first >= start) return false;
   const cursor = parseLocalDate(first);
   const projection = createAgendaProjection(data);
   for (
-    let date = localDate(cursor);
-    date < start;
-    cursor.setDate(cursor.getDate() + 1), date = localDate(cursor)
+    let date = civilDate(cursor);
+    cursor < lastDate;
+    cursor.setUTCDate(cursor.getUTCDate() + 1), date = civilDate(cursor)
   ) {
     if (participates(data, scope, date, projection.agenda(date))) return true;
   }
@@ -153,25 +154,25 @@ export interface PeriodWindow {
 export function periodWindow(today: LocalDate, interval: Interval, offset: number): PeriodWindow {
   if (!Number.isSafeInteger(offset) || offset < 0) throw new Error('Invalid period offset');
   const yesterday = parseLocalDate(today);
-  yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
   const end = new Date(yesterday);
   const start = new Date(yesterday);
   if (interval === '7d') {
-    end.setDate(end.getDate() - offset * 7);
-    start.setFullYear(end.getFullYear(), end.getMonth(), end.getDate() - 6);
+    end.setUTCDate(end.getUTCDate() - offset * 7);
+    start.setUTCFullYear(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate() - 6);
   } else {
     const months = Number(interval.slice(0, -1));
     // Anchor on day one before changing months to avoid month-end overflow.
-    end.setDate(1);
-    end.setMonth(end.getMonth() - offset * months + 1);
-    end.setDate(0);
-    start.setDate(1);
-    start.setMonth(start.getMonth() - offset * months - months + 1);
+    end.setUTCDate(1);
+    end.setUTCMonth(end.getUTCMonth() - offset * months + 1);
+    end.setUTCDate(0);
+    start.setUTCDate(1);
+    start.setUTCMonth(start.getUTCMonth() - offset * months - months + 1);
   }
-  const endDate = localDate(end);
+  const endDate = civilDate(end);
   return {
-    start: localDate(start),
+    start: civilDate(start),
     end: endDate,
-    historyEnd: endDate < localDate(yesterday) ? endDate : localDate(yesterday),
+    historyEnd: endDate < civilDate(yesterday) ? endDate : civilDate(yesterday),
   };
 }

@@ -20,7 +20,7 @@ import {
   nextHabitScheduledDate,
   pendingReactivationDate,
 } from '../domain/agenda';
-import { weekday } from '../domain/calendar';
+import { parseLocalDate, weekday } from '../domain/calendar';
 import { calculateProgress } from '../domain/progress';
 import { pillarHasProspectiveHabits } from '../domain/pillars';
 import { progressIntervalOrDefault } from '../domain/preferences';
@@ -89,18 +89,7 @@ function mask(value: unknown, incomplete = false): number[] {
 
 function date(value: unknown): string {
   const result = text(value);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(result)) invalid();
-  const [y, m, d] = result.split('-').map(Number);
-  const check = new Date(0);
-  check.setUTCFullYear(y, m - 1, d);
-  check.setUTCHours(0, 0, 0, 0);
-  if (
-    y < 100 ||
-    check.getUTCFullYear() !== y ||
-    check.getUTCMonth() !== m - 1 ||
-    check.getUTCDate() !== d
-  )
-    invalid();
+  parseLocalDate(result);
   return result;
 }
 

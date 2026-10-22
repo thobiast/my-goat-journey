@@ -316,6 +316,21 @@ The application does not need location permission to impose a geographic referen
 
 A recorded commitment keeps its habit identity and the local date to which it was assigned. Device-timezone changes must not retroactively relabel completed records.
 
+Stored `YYYY-MM-DD` values are Gregorian **civil dates**, not instants. Validate
+and traverse historical dates independently of the device's current timezone,
+including a date that was historically skipped in that zone (for example,
+`2011-12-30` in Pacific/Apia). The supported stored year range is `0100`–`9999`;
+invalid Gregorian dates reject rather than rolling into another month. Historical
+weekday selection, arithmetic, replay, correction windows, calendar geometry and
+localized labels retain that civil identity. Identical facts and the same explicit
+civil Today produce the same derived results in every zone.
+
+This does not make Today a UTC day: determine Today from the current device-local
+clock first, then use that civil value for domain calculations. Actual timestamps,
+including recording and backup export timestamps, remain instants. Neither travel
+nor a language switch shifts stored dates, rewrites facts or requires a source-zone
+field or data migration.
+
 An event timestamp and the device offset or timezone observed when recording may be retained as historical metadata. That metadata is not an ongoing reference timezone governing future commitments.
 
 Before creating an occurrence record, check whether one already exists for the pair **stable habit identifier + assigned device-local date**. This is the uniqueness boundary, not the goal text or the date alone: different habits may legitimately have occurrences on the same date.

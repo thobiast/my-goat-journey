@@ -74,10 +74,30 @@ If bootstrap cannot create the development image/resources because the lock is m
 
 ```sh
 sh scripts/containers.sh audit
-# Optional calendar-unit checks in alternate container timezones:
-sh scripts/containers.sh tool env TZ=America/New_York npm run test
-sh scripts/containers.sh tool env TZ=Asia/Tokyo npm run test
+# Run date-sensitive checks in separate explicit-timezone processes, serially:
+for zone in UTC Pacific/Apia America/New_York Asia/Tokyo; do
+  sh scripts/containers.sh tool env TZ="$zone" npm run test -- \
+    tests/domain tests/data tests/ui/monthly-calendar.test.ts \
+    tests/ui/progress-calendar.test.ts tests/ui/calendar-label-work.test.ts
+done
 ```
+
+Do not change a global timezone midway through concurrent tests. Compare identical
+fictional stored facts and the same explicit civil Today; an actual instant can
+legitimately yield different device-local Todays. Historical utilities use UTC-backed
+civil carriers and explicit UTC label formatting, while `localDate` reads actual
+instants in the device zone. Include skipped-day, Gregorian validation, leap/month/year
+and DST cases, plus local midnight on either side of Today.
+
+`e2e/civil-dates.spec.ts` uses isolated UTC and Pacific/Apia browser contexts and an
+injected clock to check English/Portuguese historical labels, calendar navigation,
+native export and confirmed replacement with exact fictional fact readback. It also
+checks device-local Today and midnight refresh in UTC, Pacific/Apia,
+America/New_York and Asia/Tokyo. Run it
+against development with `sh scripts/containers.sh e2e e2e/civil-dates.spec.ts`.
+For compiled verification, first prepare the shared build and a matching production
+runtime, then select the same file with that runtime's `BASE_URL`; no source-module
+seam or full A/B/C lifecycle fixture is required for this date-only flow.
 
 ## GitHub-hosted application CI
 

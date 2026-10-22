@@ -67,6 +67,7 @@ export function HabitDetail({
   const start = trackingStart(data, { kind: 'habit', id: habit.id });
   const trackingDate = start
     ? new Intl.DateTimeFormat(data.settings.language === 'pt' ? 'pt-BR' : 'en', {
+        timeZone: 'UTC',
         dateStyle: 'medium',
       }).format(parseLocalDate(start))
     : undefined;

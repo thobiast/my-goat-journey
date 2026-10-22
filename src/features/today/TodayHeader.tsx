@@ -9,8 +9,8 @@ export function displayDate(date: LocalDate, language: Language, short = false):
   return new Intl.DateTimeFormat(
     language === 'pt' ? 'pt-BR' : 'en',
     short
-      ? { day: 'numeric', month: 'short' }
-      : { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' },
+      ? { timeZone: 'UTC', day: 'numeric', month: 'short' }
+      : { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' },
   ).format(parseLocalDate(date));
 }
 

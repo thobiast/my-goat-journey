@@ -7,7 +7,8 @@ import { calculateProgress } from '../../src/domain/progress';
 import { seed, stored } from './fixtures';
 
 const today = '2026-10-07';
-const now = new Date('2026-10-07T12:00:00Z');
+// Commands below intentionally target this civil Today in each isolated TZ process.
+const now = new Date('2026-10-07T12:00:00');
 
 function chosenDraft(): OnboardingDraft {
   const draft = emptyOnboardingDraft();

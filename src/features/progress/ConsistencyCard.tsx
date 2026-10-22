@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type KeyboardEvent } from 'react';
-import { localDate, parseLocalDate, weekday } from '../../domain/calendar';
+import { civilDate, parseLocalDate, weekday } from '../../domain/calendar';
 import type { Dataset, Language, LocalDate, Pillar } from '../../domain/types';
 import type { HabitProgress, StreakProgress } from '../../domain/progress';
 import type { Copy } from '../habits/GoalFields';
@@ -24,13 +24,15 @@ export const stateLabel = (state: DayState, copy: Copy) =>
   })[state];
 
 export function fullDate(date: LocalDate, language: Language) {
-  return new Intl.DateTimeFormat(language === 'pt' ? 'pt-BR' : 'en', { dateStyle: 'full' }).format(
-    parseLocalDate(date),
-  );
+  return new Intl.DateTimeFormat(language === 'pt' ? 'pt-BR' : 'en', {
+    timeZone: 'UTC',
+    dateStyle: 'full',
+  }).format(parseLocalDate(date));
 }
 
 export function rangeLabel(start: LocalDate, end: LocalDate, language: Language) {
   const formatter = new Intl.DateTimeFormat(language === 'pt' ? 'pt-BR' : 'en', {
+    timeZone: 'UTC',
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -85,10 +87,11 @@ export function CalendarLegend({ pillars, copy }: { pillars: boolean; copy: Copy
 function datesBetween(start: LocalDate, end: LocalDate) {
   const dates: LocalDate[] = [];
   const cursor = parseLocalDate(start);
+  const lastDate = parseLocalDate(end);
   for (
-    let date = localDate(cursor);
-    date <= end;
-    cursor.setDate(cursor.getDate() + 1), date = localDate(cursor)
+    let date = civilDate(cursor);
+    cursor <= lastDate;
+    cursor.setUTCDate(cursor.getUTCDate() + 1), date = civilDate(cursor)
   )
     dates.push(date);
   return dates;
@@ -127,10 +130,12 @@ export function DailyCalendar({
   const active = selectable.some((day) => day.date === focused) ? focused : first;
   // A calendar render formats many dates with one locale/options pair.
   const dateFormatter = new Intl.DateTimeFormat(language === 'pt' ? 'pt-BR' : 'en', {
+    timeZone: 'UTC',
     dateStyle: 'full',
   });
   const dateLabel = (date: LocalDate) => dateFormatter.format(parseLocalDate(date));
   const monthFormatter = new Intl.DateTimeFormat(language === 'pt' ? 'pt-BR' : 'en', {
+    timeZone: 'UTC',
     month: 'long',
     year: 'numeric',
   });
@@ -141,8 +146,8 @@ export function DailyCalendar({
     let target: LocalDate | undefined;
     if (key in delta) {
       const cursor = parseLocalDate(date);
-      cursor.setDate(cursor.getDate() + delta[key]);
-      const candidate = localDate(cursor);
+      cursor.setUTCDate(cursor.getUTCDate() + delta[key]);
+      const candidate = civilDate(cursor);
       // Skip noninteractive participation gaps without making them eligible.
       target =
         delta[key] > 0
@@ -169,7 +174,7 @@ export function DailyCalendar({
               <span className="weekday-narrow">{copy.shortWeekdays[weekday(date)][0]}</span>
             </small>
           )}
-          <span className="day-number">{parseLocalDate(date).getDate()}</span>
+          <span className="day-number">{parseLocalDate(date).getUTCDate()}</span>
         </span>
       )
     );
@@ -308,6 +313,7 @@ export function ConsistencyCard({
   const trackingDate =
     scope.kind !== 'habit' && start
       ? new Intl.DateTimeFormat(data.settings.language === 'pt' ? 'pt-BR' : 'en', {
+          timeZone: 'UTC',
           dateStyle: 'medium',
         }).format(parseLocalDate(start))
       : undefined;

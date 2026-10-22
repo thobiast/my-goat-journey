@@ -1,6 +1,6 @@
 import { activationAt, agenda, definitionAt, membershipAt } from '../../domain/agenda';
 import { editableOccurrences } from '../../domain/history';
-import { localDate, parseLocalDate } from '../../domain/calendar';
+import { civilDate, parseLocalDate } from '../../domain/calendar';
 import type { AgendaItem, Dataset, LocalDate } from '../../domain/types';
 import type { Copy } from '../habits/GoalFields';
 import { displayDate } from '../today/TodayHeader';
@@ -92,9 +92,9 @@ export function ProgressDayPage({
     ];
   });
   const previous = parseLocalDate(date);
-  previous.setDate(previous.getDate() - 1);
+  previous.setUTCDate(previous.getUTCDate() - 1);
   const next = parseLocalDate(date);
-  next.setDate(next.getDate() + 1);
+  next.setUTCDate(next.getUTCDate() + 1);
   const done = day.items.filter((item) => item.done).length;
   const required = day.items.filter(
     (item) =>
@@ -174,16 +174,16 @@ export function ProgressDayPage({
       <div className="day-navigation">
         <button
           aria-label={copy.previousDay}
-          disabled={busy || localDate(previous) < window.start}
-          onClick={() => changeDay(localDate(previous))}
+          disabled={busy || civilDate(previous) < window.start}
+          onClick={() => changeDay(civilDate(previous))}
         >
           ←
         </button>
         <p>{displayDate(date, data.settings.language)}</p>
         <button
           aria-label={copy.nextDay}
-          disabled={busy || localDate(next) > window.historyEnd || localDate(next) >= today}
-          onClick={() => changeDay(localDate(next))}
+          disabled={busy || civilDate(next) > window.historyEnd || civilDate(next) >= today}
+          onClick={() => changeDay(civilDate(next))}
         >
           →
         </button>

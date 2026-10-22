@@ -1,5 +1,5 @@
 import { validateDataset } from '../../src/data/backup';
-import { localDate, parseLocalDate } from '../../src/domain/calendar';
+import { civilDate, parseLocalDate } from '../../src/domain/calendar';
 import type { Dataset, Habit, Occurrence } from '../../src/domain/types';
 import type { CalendarScope, PeriodWindow } from '../../src/features/progress/calendar';
 
@@ -146,9 +146,9 @@ export function projectionDates(start: string, end: string): string[] {
   const dates: string[] = [];
   const cursor = parseLocalDate(start);
   for (
-    let date = localDate(cursor);
+    let date = civilDate(cursor);
     date <= end;
-    cursor.setDate(cursor.getDate() + 1), date = localDate(cursor)
+    cursor.setUTCDate(cursor.getUTCDate() + 1), date = civilDate(cursor)
   ) {
     dates.push(date);
   }

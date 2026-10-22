@@ -1,5 +1,5 @@
 import { createAgendaProjection, pendingReactivationDate, summarize } from './agenda';
-import { localDate, parseLocalDate } from './calendar';
+import { civilDate, parseLocalDate } from './calendar';
 import type { AgendaSummary, CompatibleDataset, LocalDate } from './types';
 
 export interface StreakProgress {
@@ -83,7 +83,7 @@ function reconcileAggregateDay(
 export function calculateProgress(input: CompatibleDataset, today: LocalDate): ProgressSnapshot {
   const projection = createAgendaProjection(input);
   const data = projection.data;
-  parseLocalDate(today);
+  const lastDate = parseLocalDate(today);
   const result: ProgressSnapshot = {
     habits: Object.fromEntries(
       data.habits.map((h) => [h.id, { current: 0, best: 0, xp: 0, nextBonus: null }]),
@@ -100,9 +100,9 @@ export function calculateProgress(input: CompatibleDataset, today: LocalDate): P
   const firstDate = data.habits.map((h) => h.createdOn).sort()[0] ?? today;
   const cursor = parseLocalDate(firstDate);
   for (
-    let date = localDate(cursor);
-    date <= today;
-    cursor.setDate(cursor.getDate() + 1), date = localDate(cursor)
+    let date = civilDate(cursor);
+    cursor <= lastDate;
+    cursor.setUTCDate(cursor.getUTCDate() + 1), date = civilDate(cursor)
   ) {
     const items = projection.agenda(date);
     for (const item of items) {

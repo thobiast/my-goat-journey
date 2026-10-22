@@ -5,7 +5,7 @@ import type {
   LegacyHabit as Habit,
   OccurrenceSnapshot as Occurrence,
 } from '../../src/domain/types';
-import { localDate, parseLocalDate } from '../../src/domain/calendar';
+import { civilDate, parseLocalDate } from '../../src/domain/calendar';
 
 const created = '2026-09-28';
 
@@ -51,8 +51,8 @@ function dataset(habits = [habit()], occurrences: Occurrence[] = []): Dataset {
 
 function dateAfter(days: number): string {
   const date = parseLocalDate(created);
-  date.setDate(date.getDate() + days);
-  return localDate(date);
+  date.setUTCDate(date.getUTCDate() + days);
+  return civilDate(date);
 }
 
 test('a closed required miss breaks the run without revoking past XP; today pending preserves it', () => {

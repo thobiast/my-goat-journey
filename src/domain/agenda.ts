@@ -1,4 +1,4 @@
-import { localDate, parseLocalDate, weekday } from './calendar';
+import { civilDate, parseLocalDate, weekday } from './calendar';
 import { migrateDataset } from '../data/migrations';
 import type {
   ActivationPeriod,
@@ -26,11 +26,11 @@ export function nextHabitScheduledDate(habit: Habit, after: LocalDate): LocalDat
   const limit = parseLocalDate(
     [after, ...habit.versions.map((v) => v.effectiveFrom)].sort().at(-1)!,
   );
-  limit.setDate(limit.getDate() + 7);
+  limit.setUTCDate(limit.getUTCDate() + 7);
   while (cursor < limit) {
-    cursor.setDate(cursor.getDate() + 1);
-    const date = localDate(cursor);
-    if (definitionAt(habit, date)?.weekdays.includes(cursor.getDay())) return date;
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+    const date = civilDate(cursor);
+    if (definitionAt(habit, date)?.weekdays.includes(cursor.getUTCDay())) return date;
   }
   throw new Error('No valid resumption schedule');
 }

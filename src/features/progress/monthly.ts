@@ -1,4 +1,4 @@
-import { localDate, parseLocalDate } from '../../domain/calendar';
+import { civilDate, parseLocalDate } from '../../domain/calendar';
 import type { Dataset, LocalDate } from '../../domain/types';
 import { createAgendaProjection } from '../../domain/agenda';
 import { participates, type CalendarScope, type PeriodWindow } from './calendar';
@@ -14,30 +14,30 @@ export interface CalendarMonth {
 export function calendarMonths(window: PeriodWindow): CalendarMonth[] {
   const cursor = parseLocalDate(window.start);
   const last = parseLocalDate(window.end);
-  cursor.setDate(1);
-  last.setDate(1);
+  cursor.setUTCDate(1);
+  last.setUTCDate(1);
   const months: CalendarMonth[] = [];
   while (cursor <= last) {
-    const start = localDate(cursor);
+    const start = civilDate(cursor);
     const monthEnd = new Date(cursor);
-    monthEnd.setMonth(monthEnd.getMonth() + 1);
-    monthEnd.setDate(0);
-    const end = localDate(monthEnd);
+    monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1);
+    monthEnd.setUTCDate(0);
+    const end = civilDate(monthEnd);
     const cells: (LocalDate | null)[] = Array.from(
-      { length: (cursor.getDay() + 6) % 7 },
+      { length: (cursor.getUTCDay() + 6) % 7 },
       () => null,
     );
     const day = new Date(cursor);
     for (
-      let date = localDate(day);
-      date <= end;
-      day.setDate(day.getDate() + 1), date = localDate(day)
+      let date = civilDate(day);
+      day <= monthEnd;
+      day.setUTCDate(day.getUTCDate() + 1), date = civilDate(day)
     ) {
       cells.push(date);
     }
     while (cells.length % 7) cells.push(null);
     months.push({ key: start.slice(0, 7), start, end, cells });
-    cursor.setMonth(cursor.getMonth() + 1);
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
   }
   return months;
 }
@@ -63,14 +63,13 @@ export function trackingStart(data: Dataset, scope: CalendarScope): LocalDate | 
   // After the last saved boundary, a weekly schedule needs at most seven
   // local days to expose its first pending reactivation opportunity.
   const limit = parseLocalDate(knownDates.sort().at(-1)!);
-  limit.setDate(limit.getDate() + 7);
-  const last = localDate(limit);
+  limit.setUTCDate(limit.getUTCDate() + 7);
   const cursor = parseLocalDate(first);
   const projection = createAgendaProjection(data);
   for (
-    let date = localDate(cursor);
-    date <= last;
-    cursor.setDate(cursor.getDate() + 1), date = localDate(cursor)
+    let date = civilDate(cursor);
+    cursor <= limit;
+    cursor.setUTCDate(cursor.getUTCDate() + 1), date = civilDate(cursor)
   ) {
     if (participates(data, scope, date, projection.agenda(date))) return date;
   }

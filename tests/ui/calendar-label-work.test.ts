@@ -15,6 +15,7 @@ test.each(['en', 'pt'] as const)(
     const window = periodWindow('2026-10-03', '3m', 0);
     const days = calendarDays(data, { kind: 'habit', id: 'read' }, window);
     const formatter = new Intl.DateTimeFormat(language === 'pt' ? 'pt-BR' : 'en', {
+      timeZone: 'UTC',
       dateStyle: 'full',
     });
     const labels = days

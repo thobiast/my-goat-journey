@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { agenda } from '../../src/domain/agenda';
-import { localDate, parseLocalDate } from '../../src/domain/calendar';
+import { civilDate, parseLocalDate } from '../../src/domain/calendar';
 import { updateCompletion } from '../../src/domain/completion';
 import { editHabit } from '../../src/domain/lifecycle';
 import type { Dataset } from '../../src/domain/types';
@@ -18,20 +18,20 @@ export async function restoreCalendarHistory(page: Page): Promise<Dataset> {
   }
   const cursor = parseLocalDate('2024-01-01');
   for (
-    let date = localDate(cursor);
+    let date = civilDate(cursor);
     date <= '2026-03-01';
-    cursor.setDate(cursor.getDate() + 1), date = localDate(cursor)
+    cursor.setUTCDate(cursor.getUTCDate() + 1), date = civilDate(cursor)
   ) {
     if (date === '2026-02-02')
       editHabit(
         data,
         data.habits[0].id,
         { pillarId: 'body', goal: 'Read slowly and write a short note', weekdays: [1, 3, 5] },
-        parseLocalDate(date),
+        new Date(`${date}T12:00:00`),
       );
     for (const item of agenda(data, date)) {
-      if ((cursor.getDate() + data.habits.indexOf(item.habit)) % 5 !== 0)
-        updateCompletion(data, item.habit.id, date, true, parseLocalDate(date));
+      if ((cursor.getUTCDate() + data.habits.indexOf(item.habit)) % 5 !== 0)
+        updateCompletion(data, item.habit.id, date, true, new Date(`${date}T12:00:00`));
     }
   }
   await nav(page, 'Settings').click();

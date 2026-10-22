@@ -1,4 +1,4 @@
-import { localDate, parseLocalDate } from '../../src/domain/calendar';
+import { civilDate, parseLocalDate } from '../../src/domain/calendar';
 import { DEFAULT_PILLARS, type Dataset } from '../../src/domain/types';
 
 /** Fictional deterministic scale fixture; validate outside measured operations. */
@@ -12,8 +12,8 @@ export function longHistory(
 } {
   const cursor = parseLocalDate('2024-10-22');
   const dates = Array.from({ length: dateCount }, () => {
-    const date = localDate(cursor);
-    cursor.setDate(cursor.getDate() + 1);
+    const date = civilDate(cursor);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
     return date;
   });
   const createdOn = dates[0];

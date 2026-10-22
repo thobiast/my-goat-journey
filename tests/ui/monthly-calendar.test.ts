@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { calendarMonths, trackingStart } from '../../src/features/progress/monthly';
 import { calendarDays, periodStats, periodWindow } from '../../src/features/progress/calendar';
-import { localDate, parseLocalDate } from '../../src/domain/calendar';
+import { civilDate, parseLocalDate } from '../../src/domain/calendar';
 import { facts } from '../domain/fixtures';
 import { archiveHabit, editHabit, reactivateHabit } from '../../src/domain/lifecycle';
 import { updateCompletion } from '../../src/domain/completion';
@@ -87,9 +87,9 @@ test.each(['1m', '3m', '12m', '24m'] as const)(
     const expected = [];
     const cursor = parseLocalDate(window.start);
     for (
-      let date = localDate(cursor);
+      let date = civilDate(cursor);
       date <= window.end;
-      cursor.setDate(cursor.getDate() + 1), date = localDate(cursor)
+      cursor.setUTCDate(cursor.getUTCDate() + 1), date = civilDate(cursor)
     ) {
       expected.push(date);
     }
@@ -100,7 +100,7 @@ test.each(['1m', '3m', '12m', '24m'] as const)(
       for (const [index, date] of month.cells.entries()) {
         if (date === null) continue;
         expect(date.slice(0, 7)).toBe(month.key);
-        expect((parseLocalDate(date).getDay() + 6) % 7).toBe(index % 7);
+        expect((parseLocalDate(date).getUTCDay() + 6) % 7).toBe(index % 7);
       }
     }
   },
@@ -370,35 +370,26 @@ test('tracking begins independently of displayed periods and future intent witho
   expect(projections.map(periodStats)).toEqual(stats);
 });
 
-test.each(['America/New_York', 'Europe/Berlin', 'America/Sao_Paulo'])(
-  'local month traversal retains every date in timezone %s',
-  (timezone) => {
-    const previous = process.env.TZ;
-    process.env.TZ = timezone;
-    try {
-      for (const key of ['2026-03', '2026-10', '2026-11']) {
-        const start = `${key}-01`;
-        const last = parseLocalDate(start);
-        last.setMonth(last.getMonth() + 1);
-        last.setDate(0);
-        const end = localDate(last);
-        const month = calendarMonths({ start, end, historyEnd: end })[0];
-        expect(month.cells.filter((date) => date !== null)).toEqual(
-          Array.from(
-            { length: last.getDate() },
-            (_, index) => `${key}-${String(index + 1).padStart(2, '0')}`,
-          ),
-        );
-        for (const [index, date] of month.cells.entries()) {
-          if (date !== null) expect((parseLocalDate(date).getDay() + 6) % 7).toBe(index % 7);
-        }
-      }
-    } finally {
-      if (previous === undefined) delete process.env.TZ;
-      else process.env.TZ = previous;
+// Exercise this in isolated TZ processes; never change a concurrent runner's timezone.
+test('civil month traversal retains every date across DST transition months', () => {
+  for (const key of ['2026-03', '2026-10', '2026-11']) {
+    const start = `${key}-01`;
+    const last = parseLocalDate(start);
+    last.setUTCMonth(last.getUTCMonth() + 1);
+    last.setUTCDate(0);
+    const end = civilDate(last);
+    const month = calendarMonths({ start, end, historyEnd: end })[0];
+    expect(month.cells.filter((date) => date !== null)).toEqual(
+      Array.from(
+        { length: last.getUTCDate() },
+        (_, index) => `${key}-${String(index + 1).padStart(2, '0')}`,
+      ),
+    );
+    for (const [index, date] of month.cells.entries()) {
+      if (date !== null) expect((parseLocalDate(date).getUTCDay() + 6) % 7).toBe(index % 7);
     }
-  },
-);
+  }
+});
 
 function deepFreeze(value: object): void {
   Object.freeze(value);
