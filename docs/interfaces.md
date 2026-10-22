@@ -203,8 +203,14 @@ version **1**, object store `dataset`, key `current`.
   reconciliation from external changes. Its own due transition preserves
   unrelated drafts, dirty state and Retry; a stale read falls back to the normal
   external invalidation path, even for replacement with otherwise identical facts.
-  Explicit form Save/Retry uses the latest locally committed revision, while
+  Explicit form Save/Retry uses the latest locally adopted snapshot revision, while
   restore/deletion confirmations remain bound to their reviewed revision.
+- A fresh export load stays serialized and may reconcile due lifecycle facts, but
+  does not adopt its snapshot or revision as mutation authority. Mutations must
+  not gain a newer expected revision while their input still comes from an older,
+  unreconciled interface snapshot. A subsequent stale Save retains literal input,
+  rejects without writing or blind Retry, and requires explicit reload/review;
+  export alone does not discard drafts or reapply them to newer facts.
 
 The optional `revision?` arguments below are expected local revisions; replacement
 and reset require `expectedRevision`.

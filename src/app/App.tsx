@@ -280,7 +280,10 @@ export function App() {
   function enqueue(
     work: () => Promise<Dataset>,
     observedEpoch = epoch.current,
-    lifecycleRefresh = false,
+    {
+      lifecycleRefresh = false,
+      adoptSnapshot = true,
+    }: { lifecycleRefresh?: boolean; adoptSnapshot?: boolean } = {},
   ): Promise<Dataset> {
     if (transitionLocked.current)
       return Promise.reject(new Error('Application update in progress'));
@@ -290,7 +293,9 @@ export function App() {
     const result = queue.current.then(async () => {
       if (observedEpoch !== epoch.current) throw new DatasetError('stale-revision');
       const state = await work();
-      committed.current = state;
+      // Export may read/reconcile newer facts without adopting them into the UI.
+      // Its revision must not authorize mutations from the older rendered snapshot.
+      if (adoptSnapshot) committed.current = state;
       return state;
     });
     const settled = result.finally(() => {
@@ -456,7 +461,7 @@ export function App() {
           return repository.load(now);
         },
         epoch.current,
-        lifecycleRefresh,
+        { lifecycleRefresh },
       );
       if (state.revision !== dataRevision.current || review) {
         // A revision-guarded load can only reconcile our known lifecycle facts.
@@ -1500,7 +1505,11 @@ export function App() {
           copy={copy}
           busy={busy}
           settings={(patch) => void commit(() => repository.setSettings(patch, data.revision))}
-          fresh={() => enqueue(() => repository.load(deviceClock.now()))}
+          fresh={() =>
+            enqueue(() => repository.load(deviceClock.now()), epoch.current, {
+              adoptSnapshot: false,
+            })
+          }
           edited={invalidateRetry}
           reset={(revision) =>
             void commit(

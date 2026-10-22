@@ -363,6 +363,55 @@ test('resume readonly queue and export lease block automatic/manual acceptance u
   expect(await readDataset(page)).toEqual(before);
 });
 
+for (const stage of ['read', 'download'] as const)
+  test(`backup export ${stage} failure releases operation and update guards`, async ({ page }) => {
+    await setup(page);
+    await nav(page, en.settings).click();
+    const before = await readDataset(page);
+    const identity = await documentIdentity(page);
+    await offer(page);
+    await expect(update(page)).toBeEnabled();
+    await page.evaluate((stage) => {
+      if (stage === 'read') {
+        const original = IDBObjectStore.prototype.get;
+        IDBObjectStore.prototype.get = function (...args: Parameters<typeof original>) {
+          IDBObjectStore.prototype.get = original;
+          const request = original.apply(this, args);
+          this.transaction.abort();
+          return request;
+        };
+      } else {
+        const original = URL.createObjectURL;
+        URL.createObjectURL = () => {
+          URL.createObjectURL = original;
+          throw new Error('Isolated fictional download failure');
+        };
+      }
+    }, stage);
+    const downloads: string[] = [];
+    page.on('download', (download) => downloads.push(download.suggestedFilename()));
+    const exportButton = page.getByRole('button', { name: en.exportBackup, exact: true });
+    await exportButton.click();
+    await expect(page.getByRole('alert')).toContainText(en.saveError);
+    await expect(exportButton).toBeEnabled();
+    await expect(update(page)).toBeEnabled();
+    expect(downloads).toEqual([]);
+    expect(await count(page)).toBe(0);
+    await unchangedDocument(page, identity);
+    expect(await readDataset(page)).toEqual(before);
+
+    const pending = page.waitForEvent('download');
+    await exportButton.click();
+    await pending;
+    await expect(page.getByText(en.downloadStarted, { exact: true })).toBeVisible();
+    await expect(update(page)).toBeEnabled();
+    const loaded = page.waitForEvent('domcontentloaded');
+    await update(page).click();
+    await loaded;
+    await expect.poll(() => count(page)).toBe(1);
+    expect(await readDataset(page)).toEqual(before);
+  });
+
 test('backup parsing and visible restore/delete confirmations cannot be silently discarded', async ({
   page,
 }) => {
