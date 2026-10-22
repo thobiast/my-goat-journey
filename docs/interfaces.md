@@ -196,6 +196,14 @@ checking `code`; diagnostic wording is not a control-flow identifier.
   path, even when their message or arbitrary `code` resembles a known conflict.
   Transaction aborts still propagate the original failure and preserve prior data.
 
+App retains a restricted set of error message identifiers (`saveError`,
+`staleError`, `historicalConflict`, `goalError`) and resolves their text from the
+current language during rendering, including asynchronous failures. Retry still
+requires the existing retained operation; Reload/review uses the semantic stale
+identifier, never a comparison with translated copy. Navigation, edits and new
+commits keep their existing feedback-clearing and invalidation timing; changing
+language does not create a new error-retention path.
+
 `BackupError` remains the separate backup validation/size contract described below.
 
 ## Repository and transactional persistence

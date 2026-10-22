@@ -57,6 +57,7 @@ import { usePageHeadingFocus } from './usePageHeadingFocus';
 
 const repository = new Repository();
 const emptyDraft = emptyOnboardingDraft;
+type ErrorMessage = 'saveError' | 'staleError' | 'historicalConflict' | 'goalError';
 type ReturnOrigin = {
   route: Route;
   y: number;
@@ -73,7 +74,7 @@ export function App() {
   const [progressView, setProgressView] = useState<ProgressView>(initialProgressView);
   const [pillarHistoryLimits, setPillarHistoryLimits] = useState<Record<string, number>>({});
   const [operationBusy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<ErrorMessage>();
   const [status, setStatus] = useState('');
   const [xpFeedback, setXpFeedback] = useState<XpFeedbackValue>();
   const xpFeedbackId = useRef(0);
@@ -272,7 +273,7 @@ export function App() {
   const invalidateRetry = () => {
     ++feedbackVersion.current;
     retry.current = null;
-    setError('');
+    setError(undefined);
     setStatus('');
     setXpFeedback(undefined);
   };
@@ -348,7 +349,7 @@ export function App() {
     ++explicitCommits.current;
     ++operationActive.current;
     setBusy(true);
-    setError('');
+    setError(undefined);
     setStatus('');
     setXpFeedback(undefined);
     retry.current = () =>
@@ -368,7 +369,7 @@ export function App() {
         const historical =
           failure instanceof DatasetError && failure.code === 'historical-conflict';
         if (stale || historical) retry.current = null;
-        setError(stale ? copy.staleError : historical ? copy.historicalConflict : copy.saveError);
+        setError(stale ? 'staleError' : historical ? 'historicalConflict' : 'saveError');
       }
     } finally {
       --explicitCommits.current;
@@ -512,11 +513,10 @@ export function App() {
                 ? { screen: 'pillars' }
                 : valid(previous),
         );
-        if (peer && !review) setError((state.settings.language === 'pt' ? pt : en).staleError);
+        if (peer && !review) setError('staleError');
       }
     } catch {
-      if (peer || review)
-        setError((committed.current?.settings.language === 'pt' ? pt : en).saveError);
+      if (peer || review) setError('saveError');
     } finally {
       --operationActive.current;
       if (lifecycleRefresh) --lifecycleActive.current;
@@ -714,7 +714,7 @@ export function App() {
         <p>{copy.loading}</p>
         {error && (
           <div role="alert">
-            {error}
+            {copy[error]}
             <button disabled={busy} onClick={() => retry.current?.()}>
               {copy.retry}
             </button>
@@ -726,13 +726,13 @@ export function App() {
     <>
       {error && (
         <div role="alert">
-          {error}
+          {copy[error]}
           {retry.current ? (
             <button disabled={busy} onClick={() => retry.current?.()}>
               {copy.retry}
             </button>
           ) : (
-            error === copy.staleError && (
+            error === 'staleError' && (
               <button disabled={busy} onClick={() => void reloadCurrent(false, true)}>
                 {copy.reload}
               </button>
@@ -788,7 +788,7 @@ export function App() {
     onboardingUnsaved.current = true;
     setDraft(next);
     setStatus(copy.saving);
-    setError('');
+    setError(undefined);
     retry.current = null;
     const feedback = ++feedbackVersion.current;
     const version = ++draftVersion.current;
@@ -808,7 +808,7 @@ export function App() {
         if (version === draftVersion.current && feedback === feedbackVersion.current) {
           setStatus('');
           const stale = failure instanceof DatasetError && failure.code === 'stale-revision';
-          setError(stale ? copy.staleError : copy.saveError);
+          setError(stale ? 'staleError' : 'saveError');
           retry.current = stale
             ? null
             : () =>
@@ -1415,7 +1415,7 @@ export function App() {
           save={(input) => {
             if (!validGoal(input)) {
               retry.current = null;
-              setError(copy.goalError);
+              setError('goalError');
               return;
             }
             void commit(
