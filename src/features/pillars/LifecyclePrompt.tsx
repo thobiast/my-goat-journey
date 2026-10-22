@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { pendingReactivationDate } from '../../domain/agenda';
 import { habitState } from '../../domain/lifecycle';
 import type { Dataset, Habit, LocalDate } from '../../domain/types';
-import type { Copy } from '../habits/GoalFields';
+import type { Copy } from '../../i18n/copy';
 import { ReactivationDestination } from './ReactivationDestination';
-import { displayDate } from '../today/TodayHeader';
+import { displayDate } from '../../presentation/civilDate';
 
 interface LifecyclePromptProps {
   data: Dataset;

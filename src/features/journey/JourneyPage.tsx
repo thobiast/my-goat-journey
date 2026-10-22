@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ProgressSnapshot } from '../../domain/progress';
 import type { Language } from '../../domain/types';
-import type { Copy } from '../habits/GoalFields';
+import type { Copy } from '../../i18n/copy';
 import { MountainTrail } from './MountainTrail';
 import { TrailIcon } from './TrailIcons';
 import { trailStretch, levelState, levelThreshold } from './trail';

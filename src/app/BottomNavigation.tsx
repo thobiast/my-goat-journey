@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import type { Copy } from '../features/habits/GoalFields';
+import type { Copy } from '../i18n/copy';
 
 export type PrimaryDestination = 'today' | 'pillars' | 'journey' | 'progress' | 'settings';
 

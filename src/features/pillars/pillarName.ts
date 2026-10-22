@@ -1,5 +1,5 @@
 import type { Pillar } from '../../domain/types';
-import type { Copy } from '../habits/GoalFields';
+import type { Copy } from '../../i18n/copy';
 
 /** Explicit user names never change when switching interface language. */
 export const pillarName = (pillar: Pillar | undefined, copy: Copy) =>

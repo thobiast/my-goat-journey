@@ -146,7 +146,7 @@ for (const language of ['en', 'pt'] as const) {
     for (const day of copy.weekdays.filter((_, index) => index !== 3))
       await form(page).getByRole('button', { name: day, exact: true }).click();
     await form(page).getByRole('button', { name: copy.saveChanges, exact: true }).click();
-    await expect(form(page).getByRole('alert')).toHaveText(copy.goalError);
+    await expect(form(page).getByRole('alert')).toHaveText(copy.onboardingDayError);
     expect(await readDataset(page)).toEqual(created);
     await form(page).getByRole('button', { name: copy.everyDay, exact: true }).click();
     await form(page).getByRole('button', { name: copy.weekdays[3], exact: true }).click();

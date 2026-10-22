@@ -1,5 +1,5 @@
 import type { HabitProgress } from '../../domain/progress';
-import type { Copy } from './GoalFields';
+import type { Copy } from '../../i18n/copy';
 
 function emphasizedText(template: string, values: Record<string, number | string>) {
   return template.split(/(\{\w+\})/g).map((part, index) => {

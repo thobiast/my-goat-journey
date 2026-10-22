@@ -1,4 +1,4 @@
-import type { Copy } from '../features/habits/GoalFields';
+import type { Copy } from '../i18n/copy';
 import type { UpdateSnapshot } from './update';
 
 /** Waiting releases are quiet; only an in-progress locked transition is announced. */

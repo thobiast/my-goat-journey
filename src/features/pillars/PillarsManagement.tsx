@@ -1,7 +1,9 @@
 import type { Dataset, Habit, LocalDate } from '../../domain/types';
-import { scheduleLabel, type Copy } from '../habits/GoalFields';
-import { beforeCreation, displayDefinition, stateAt, pillarName } from '../progress/ProgressPage';
-import { displayDate } from '../today/TodayHeader';
+import { scheduleLabel } from '../habits/formPolicy';
+import type { Copy } from '../../i18n/copy';
+import { beforeCreation, displayDefinition, stateAt } from '../habits/habitPresentation';
+import { pillarName } from './pillarName';
+import { displayDate } from '../../presentation/civilDate';
 import { pendingMoveDate } from '../../domain/lifecycle';
 import { pendingReactivationDate } from '../../domain/agenda';
 import { PillarIcon } from './PillarIcon';

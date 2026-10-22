@@ -370,6 +370,25 @@ replacement, with validation repeated inside the transaction.
 
 ## Navigation and shared presentation
 
+### Shared module owners
+
+- Import the English-catalog-derived `Copy` type directly from `src/i18n/copy.ts`
+  with a type-only import, not through a form component. Runtime catalogs and
+  language selection remain separate.
+- `src/features/pillars/pillarName.ts` owns localized default labels and literal
+  user names; import it directly rather than through ProgressPage.
+- `src/features/habits/habitPresentation.ts` owns `beforeCreation`,
+  `displayDefinition`, `displayMembership` and `stateAt`. These read-only identity
+  selectors support management and historical UI; they are not domain applicability
+  rules and must not authorize commitments or writes.
+- `src/presentation/civilDate.ts` owns `displayDate(date, language, short?)` for
+  shared full/compact civil-date labels, with explicit UTC carrier formatting.
+  Do not use it for actual event timestamps or to derive device-local Today.
+- `src/features/habits/formPolicy.ts` owns shared weekday selection/labels,
+  literal draft comparison and the existing lightweight `validGoal` form check.
+  It does not replace authoritative domain validation. GoalFields owns field
+  rendering and interaction, not these shared contracts.
+
 ### Destinations and paths
 
 | Destination | Portuguese label | Responsibility |

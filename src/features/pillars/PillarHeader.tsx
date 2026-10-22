@@ -1,7 +1,7 @@
 import type { AgendaItem, Pillar } from '../../domain/types';
 import { pillarName } from '../pillars/pillarName';
 import { summarize } from '../../domain/agenda';
-import type { Copy } from '../habits/GoalFields';
+import type { Copy } from '../../i18n/copy';
 import type { StreakProgress } from '../../domain/progress';
 import { PillarIcon } from './PillarIcon';
 

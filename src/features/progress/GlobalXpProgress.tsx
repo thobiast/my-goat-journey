@@ -1,6 +1,6 @@
 import type { ProgressSnapshot } from '../../domain/progress';
 import type { Language } from '../../domain/types';
-import type { Copy } from '../habits/GoalFields';
+import type { Copy } from '../../i18n/copy';
 
 /** Global committed progression, independent of the displayed calendar window. */
 export function GlobalXpProgress({

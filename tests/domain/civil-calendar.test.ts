@@ -9,7 +9,7 @@ import {
 import { calendarDays, periodWindow } from '../../src/features/progress/calendar';
 import { calendarMonths } from '../../src/features/progress/monthly';
 import { fullDate, rangeLabel } from '../../src/features/progress/ConsistencyCard';
-import { displayDate } from '../../src/features/today/TodayHeader';
+import { displayDate } from '../../src/presentation/civilDate';
 import { civilHistory } from '../helpers/civil-history';
 
 test('a civil date remains valid even when the current device zone skipped it', () => {
@@ -82,6 +82,7 @@ test('English and Portuguese labels describe the civil Friday, not a shifted ins
   expect(displayDate('2011-12-30', 'en')).toBe('Fri, Dec 30, 2011');
   expect(displayDate('2011-12-30', 'pt')).toBe('sex., 30 de dez. de 2011');
   expect(displayDate('2011-12-30', 'en', true)).toBe('Dec 30');
+  expect(displayDate('2011-12-30', 'pt', true)).toBe('30 de dez.');
   expect(rangeLabel('2011-12-29', '2011-12-31', 'en')).toBe('Dec 29, 2011 – Dec 31, 2011');
 });
 

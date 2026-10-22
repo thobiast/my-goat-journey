@@ -4,15 +4,15 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { HabitEditor } from '../../src/features/habits/HabitEditor';
 import { EditHabit } from '../../src/features/habits/EditHabit';
 import { deviceClock } from '../../src/domain/calendar';
-import { displayDate } from '../../src/features/today/TodayHeader';
+import { displayDate } from '../../src/presentation/civilDate';
 import { facts } from '../domain/fixtures';
 import { describe, expect, it, vi } from 'vitest';
+import { GoalFields } from '../../src/features/habits/GoalFields';
 import {
-  GoalFields,
   allWeekdaysSelected,
   scheduleLabel,
   validGoal,
-} from '../../src/features/habits/GoalFields';
+} from '../../src/features/habits/formPolicy';
 import en from '../../src/i18n/en.json';
 import pt from '../../src/i18n/pt.json';
 import type { GoalInput } from '../../src/domain/types';

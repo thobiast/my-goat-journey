@@ -23,7 +23,7 @@ import { UpdateNotice } from '../pwa/UpdateNotice';
 import en from '../i18n/en.json';
 import pt from '../i18n/pt.json';
 import { SettingsPage } from '../features/settings/SettingsPage';
-import { validGoal } from '../features/habits/GoalFields';
+import { validGoal } from '../features/habits/formPolicy';
 import { EditHabit } from '../features/habits/EditHabit';
 import { HabitEditor } from '../features/habits/HabitEditor';
 import { BottomNavigation, type PrimaryDestination } from './BottomNavigation';
@@ -39,13 +39,12 @@ import { pillarName as displayPillarName } from '../features/pillars/pillarName'
 import { JourneyPage } from '../features/journey/JourneyPage';
 import { Onboarding } from '../features/onboarding/Onboarding';
 import {
-  beforeCreation,
-  displayDefinition,
   ProgressPage,
   initialProgressView,
   initialProgressViewFor,
   type ProgressView,
 } from '../features/progress/ProgressPage';
+import { beforeCreation, displayDefinition } from '../features/habits/habitPresentation';
 import { PillarHistory } from '../features/progress/PillarHistory';
 import { HabitDetail } from '../features/progress/HabitDetail';
 import { ProgressDayPage } from '../features/progress/ProgressDayPage';

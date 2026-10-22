@@ -2,11 +2,11 @@ import { activationAt, agenda, definitionAt, membershipAt } from '../../domain/a
 import { editableOccurrences } from '../../domain/history';
 import { civilDate, parseLocalDate } from '../../domain/calendar';
 import type { AgendaItem, Dataset, LocalDate } from '../../domain/types';
-import type { Copy } from '../habits/GoalFields';
-import { displayDate } from '../today/TodayHeader';
+import type { Copy } from '../../i18n/copy';
+import { displayDate } from '../../presentation/civilDate';
 import { fullDate, StateIcon, stateLabel } from './ConsistencyCard';
 import { calendarDays, type CalendarScope, type DayState, type PeriodWindow } from './calendar';
-import { pillarName } from './ProgressPage';
+import { pillarName } from '../pillars/pillarName';
 
 export interface ProgressDayProps {
   data: Dataset;

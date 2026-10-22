@@ -2,8 +2,8 @@ import { summarize } from '../../domain/agenda';
 import { pillarHistory } from '../../domain/history';
 import type { Dataset, LocalDate, Pillar } from '../../domain/types';
 import type { ProgressSnapshot } from '../../domain/progress';
-import type { Copy } from '../habits/GoalFields';
-import { displayDate } from '../today/TodayHeader';
+import type { Copy } from '../../i18n/copy';
+import { displayDate } from '../../presentation/civilDate';
 import { PillarHeader } from '../pillars/PillarHeader';
 
 interface PillarHistoryProps {

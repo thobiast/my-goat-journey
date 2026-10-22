@@ -3,7 +3,7 @@ import type { UpdateSnapshot } from '../../pwa/update';
 import { BackupError, parseBackup, serializeBackup } from '../../data/backup';
 import { deviceClock, localDate } from '../../domain/calendar';
 import type { Dataset, Settings } from '../../domain/types';
-import type { Copy } from '../habits/GoalFields';
+import type { Copy } from '../../i18n/copy';
 import './settings.css';
 
 type StatusMessage = 'downloadStarted' | 'backupRestored';

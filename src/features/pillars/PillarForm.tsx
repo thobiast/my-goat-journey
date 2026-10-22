@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Copy } from '../habits/GoalFields';
+import type { Copy } from '../../i18n/copy';
 
 interface PillarFormProps {
   name: string;

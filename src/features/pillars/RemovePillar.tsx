@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { pillarHasProspectiveHabits } from '../../domain/pillars';
 import type { Dataset, LocalDate, Pillar } from '../../domain/types';
-import type { Copy } from '../habits/GoalFields';
+import type { Copy } from '../../i18n/copy';
 
 interface RemovePillarProps {
   data: Dataset;

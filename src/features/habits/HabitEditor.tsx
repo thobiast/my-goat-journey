@@ -1,7 +1,9 @@
 import './forms.css';
 import { useState } from 'react';
 import type { GoalInput, Pillar } from '../../domain/types';
-import { sameGoalInput, GoalFields, type Copy } from './GoalFields';
+import { GoalFields } from './GoalFields';
+import { sameGoalInput } from './formPolicy';
+import type { Copy } from '../../i18n/copy';
 
 interface HabitEditorProps {
   copy: Copy;

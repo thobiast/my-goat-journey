@@ -4,9 +4,11 @@ import { agenda, definitionAt } from '../../domain/agenda';
 import { habitState, previewHabitEdit } from '../../domain/lifecycle';
 import { deviceClock } from '../../domain/calendar';
 import type { Dataset, GoalInput, Habit, LocalDate } from '../../domain/types';
-import { sameGoalInput, GoalFields, scheduleLabel, validGoal, type Copy } from './GoalFields';
-import { displayDate } from '../today/TodayHeader';
-import { pillarName } from '../progress/ProgressPage';
+import { GoalFields } from './GoalFields';
+import { sameGoalInput, scheduleLabel, validGoal } from './formPolicy';
+import type { Copy } from '../../i18n/copy';
+import { displayDate } from '../../presentation/civilDate';
+import { pillarName } from '../pillars/pillarName';
 
 interface EditHabitProps {
   data: Dataset;

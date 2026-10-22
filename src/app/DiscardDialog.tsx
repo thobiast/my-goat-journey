@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import type { Copy } from '../features/habits/GoalFields';
+import type { Copy } from '../i18n/copy';
 import './discard-dialog.css';
 
 /** Native top-layer modality makes the entire app, including navigation, inert. */

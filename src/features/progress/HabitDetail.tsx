@@ -3,16 +3,17 @@ import { habitHistory } from '../../domain/history';
 import { parseLocalDate } from '../../domain/calendar';
 import type { AgendaItem, Dataset, Habit, LocalDate } from '../../domain/types';
 import type { ProgressSnapshot } from '../../domain/progress';
-import { scheduleLabel, type Copy } from '../habits/GoalFields';
+import { scheduleLabel } from '../habits/formPolicy';
+import type { Copy } from '../../i18n/copy';
 import { HabitMetrics } from '../habits/HabitMetrics';
-import { displayDate } from '../today/TodayHeader';
+import { displayDate } from '../../presentation/civilDate';
 import {
   beforeCreation,
   displayDefinition,
   displayMembership,
-  pillarName,
   stateAt,
-} from './ProgressPage';
+} from '../habits/habitPresentation';
+import { pillarName } from '../pillars/pillarName';
 import { pendingReactivationDate } from '../../domain/agenda';
 import { pendingMoveDate } from '../../domain/lifecycle';
 import { HabitManagement } from './HabitManagement';

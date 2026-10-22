@@ -1,11 +1,11 @@
 import type { AgendaItem, Language, Pillar } from '../../domain/types';
 import { pillarName } from '../pillars/pillarName';
 import type { ProgressSnapshot } from '../../domain/progress';
-import type { Copy } from '../habits/GoalFields';
+import type { Copy } from '../../i18n/copy';
 import { PillarIcon } from '../pillars/PillarIcon';
 import { HabitMetrics } from '../habits/HabitMetrics';
 import { summarize } from '../../domain/agenda';
-import { displayDate } from './TodayHeader';
+import { displayDate } from '../../presentation/civilDate';
 import './today.css';
 import { XpFeedback, type XpFeedbackValue } from './XpFeedback';
 

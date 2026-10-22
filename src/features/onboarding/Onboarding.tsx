@@ -5,7 +5,9 @@ import {
   type OnboardingDraft,
   type Language,
 } from '../../domain/types';
-import { GoalFields, scheduleLabel, validGoal, type Copy } from '../habits/GoalFields';
+import { GoalFields } from '../habits/GoalFields';
+import { scheduleLabel, validGoal } from '../habits/formPolicy';
+import type { Copy } from '../../i18n/copy';
 import { PillarIcon } from '../pillars/PillarIcon';
 import '../habits/forms.css';
 import './onboarding.css';

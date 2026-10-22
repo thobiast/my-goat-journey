@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import type { Copy } from '../habits/GoalFields';
+import type { Copy } from '../../i18n/copy';
 import { TRAIL_SEGMENTS, levelState } from './trail';
 import { TrailIcon } from './TrailIcons';
 

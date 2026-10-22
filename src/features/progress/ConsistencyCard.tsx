@@ -2,7 +2,7 @@ import { useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { civilDate, parseLocalDate, weekday } from '../../domain/calendar';
 import type { Dataset, Language, LocalDate, Pillar } from '../../domain/types';
 import type { HabitProgress, StreakProgress } from '../../domain/progress';
-import type { Copy } from '../habits/GoalFields';
+import type { Copy } from '../../i18n/copy';
 import { PillarIcon } from '../pillars/PillarIcon';
 import { calendarMonths, trackingStart } from './monthly';
 import {

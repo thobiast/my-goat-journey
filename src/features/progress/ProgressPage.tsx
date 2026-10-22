@@ -1,11 +1,16 @@
 import { useMemo } from 'react';
-import { definitionAt, membershipAt, pendingReactivationDate } from '../../domain/agenda';
-import { habitState } from '../../domain/lifecycle';
-import type { Dataset, Habit, LocalDate, Pillar, Settings } from '../../domain/types';
+import { pendingReactivationDate } from '../../domain/agenda';
+import type { Dataset, LocalDate, Pillar, Settings } from '../../domain/types';
+import {
+  beforeCreation,
+  displayDefinition,
+  displayMembership,
+  stateAt,
+} from '../habits/habitPresentation';
 import { PROGRESS_INTERVALS, progressIntervalOrDefault } from '../../domain/preferences';
 import type { ProgressSnapshot } from '../../domain/progress';
-import type { Copy } from '../habits/GoalFields';
-import { displayDate } from '../today/TodayHeader';
+import type { Copy } from '../../i18n/copy';
+import { displayDate } from '../../presentation/civilDate';
 import { CalendarLegend, ConsistencyCard, rangeLabel } from './ConsistencyCard';
 import {
   calendarCards,
@@ -41,21 +46,6 @@ export const initialProgressViewFor = (settings: Settings): ProgressView => ({
   ...initialProgressView,
   interval: progressIntervalOrDefault(settings.progressInterval),
 });
-
-export { pillarName } from '../pillars/pillarName';
-
-export const beforeCreation = (habit: Habit, today: LocalDate) => today < habit.createdOn;
-
-// Stored identity for read-only UI, never an applicable definition or Today item.
-export const displayDefinition = (habit: Habit, today: LocalDate) =>
-  beforeCreation(habit, today) ? habit.versions[0] : definitionAt(habit, today)!;
-
-export const displayMembership = (habit: Habit, today: LocalDate) =>
-  beforeCreation(habit, today) ? habit.memberships[0] : membershipAt(habit, today)!;
-
-export function stateAt(habit: Habit, today: LocalDate) {
-  return beforeCreation(habit, today) ? 'waitingToStart' : habitState(habit, today).state;
-}
 
 interface ProgressPageProps {
   data: Dataset;

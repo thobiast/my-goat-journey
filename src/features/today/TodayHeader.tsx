@@ -1,18 +1,9 @@
 import type { RefObject } from 'react';
 import type { AgendaSummary, Language, LocalDate } from '../../domain/types';
-import { parseLocalDate } from '../../domain/calendar';
-import type { Copy } from '../habits/GoalFields';
+import { displayDate } from '../../presentation/civilDate';
+import type { Copy } from '../../i18n/copy';
 import { TrailIcon } from '../journey/TrailIcons';
 import './today-feedback.css';
-
-export function displayDate(date: LocalDate, language: Language, short = false): string {
-  return new Intl.DateTimeFormat(
-    language === 'pt' ? 'pt-BR' : 'en',
-    short
-      ? { timeZone: 'UTC', day: 'numeric', month: 'short' }
-      : { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' },
-  ).format(parseLocalDate(date));
-}
 
 interface TodayHeaderProps {
   copy: Copy;
