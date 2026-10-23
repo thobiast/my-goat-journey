@@ -142,6 +142,145 @@ test('byte read failure maps to invalid without changing the supplied dataset', 
   expect((await parseBackup(file)).dataset).toEqual(data);
 });
 
+test('definition timeline diagnostics survive validation, export and parsing', async () => {
+  const data = fixture();
+  data.habits[0].versions[0].effectiveFrom = '2026-09-28';
+  const expected = expect.objectContaining({
+    name: 'BackupError',
+    code: 'invalid',
+    message: 'Invalid or unsupported backup',
+    diagnostic: { rule: 'definition-timeline', location: 'habits.versions' },
+  });
+  expect(() => validateDataset(data)).toThrow(expected);
+  expect(() => serializeBackup(data, now)).toThrow(expected);
+  await expect(parseBackup(envelope(data))).rejects.toThrow(expected);
+});
+
+async function backupFailure(operation: () => unknown): Promise<BackupError> {
+  const error: unknown = await Promise.resolve()
+    .then(operation)
+    .then(
+      () => {
+        throw new Error('Expected backup rejection');
+      },
+      (error: unknown) => error,
+    );
+  expect(error).toBeInstanceOf(BackupError);
+  if (!(error instanceof BackupError)) throw error;
+  expect(error.name).toBe('BackupError');
+  expect(error.message).toBe(
+    error.code === 'size'
+      ? 'Backup exceeds the supported 20 MiB limit'
+      : 'Invalid or unsupported backup',
+  );
+  expect(error).not.toHaveProperty('cause');
+  expect(Object.getOwnPropertyNames(error).sort()).toEqual([
+    'code',
+    'diagnostic',
+    'message',
+    'name',
+    'stack',
+  ]);
+  return error;
+}
+
+test('relational diagnostics retain only controlled metadata, not fictional private facts', async () => {
+  const data = fixture();
+  const markers = {
+    name: 'FICTIONAL_PRIVATE_PILLAR_NAME',
+    pillarId: 'FICTIONAL_PRIVATE_PILLAR_ID',
+    habitId: 'FICTIONAL_PRIVATE_HABIT_ID',
+    activationId: 'FICTIONAL_PRIVATE_ACTIVATION_ID',
+    goal: 'FICTIONAL_PRIVATE_GOAL',
+    snapshot: 'FICTIONAL_PRIVATE_SNAPSHOT_GOAL',
+    filename: 'FICTIONAL_PRIVATE_FILENAME.json',
+  };
+  Object.assign(data.pillars.at(-1)!, { name: markers.name, id: markers.pillarId });
+  data.habits[0].id = markers.habitId;
+  data.habits[0].versions[0].goal = markers.goal;
+  data.habits[0].periods[0].id = markers.activationId;
+  Object.assign(data.occurrences[0], {
+    habitId: markers.habitId,
+    pillarId: markers.pillarId,
+    activationId: markers.activationId,
+    goal: markers.snapshot,
+  });
+  expect(validateDataset(data)).toEqual(data);
+  data.occurrences[0].activationId += '_MISSING';
+  const before = structuredClone(data);
+  const file = new File([await envelope(data).arrayBuffer()], markers.filename);
+  for (const operation of [
+    () => validateDataset(data),
+    () => serializeBackup(data, now),
+    () => parseBackup(file),
+  ]) {
+    const error = await backupFailure(operation);
+    expect(error.code).toBe('invalid');
+    expect(error.diagnostic).toEqual({ rule: 'occurrence-context', location: 'occurrences' });
+    const retained = JSON.stringify(Object.getOwnPropertyDescriptors(error));
+    for (const marker of [
+      ...Object.values(markers),
+      data.habits[0].createdOn,
+      data.occurrences[0].date,
+    ])
+      expect(retained).not.toContain(marker);
+  }
+  expect(data).toEqual(before);
+});
+
+test('malformed text, unknown property names and arbitrary exceptions keep a content-free fallback', async () => {
+  const marker = 'FICTIONAL_PRIVATE_MALFORMED_INPUT';
+  const data = fixture();
+  const file = envelope(data);
+  vi.spyOn(file, 'arrayBuffer').mockRejectedValueOnce(new Error(marker, { cause: { marker } }));
+  for (const operation of [
+    () => parseBackup(new Blob([`{"${marker}": "${marker}`])),
+    () => parseBackup(file),
+    () => validateDataset({ ...data, [marker]: marker }),
+    () => validateDataset({ ...data, habits: [{ ...data.habits[0], createdOn: marker }] }),
+    () => serializeBackup(data, new Date('invalid')),
+  ]) {
+    const error = await backupFailure(operation);
+    expect(error.code).toBe('invalid');
+    expect(error.diagnostic).toBeUndefined();
+    expect(JSON.stringify(Object.getOwnPropertyDescriptors(error))).not.toContain(marker);
+  }
+});
+
+test('wrapping boundaries rethrow the same existing BackupError and safe diagnostic', async () => {
+  const original = new BackupError('invalid', undefined, {
+    rule: 'definition-timeline',
+    location: 'habits.versions',
+  });
+  const data = fixture();
+  Object.defineProperty(data, 'schemaVersion', {
+    get() {
+      throw original;
+    },
+  });
+  const file = envelope(fixture());
+  vi.spyOn(file, 'arrayBuffer').mockRejectedValueOnce(original);
+  for (const operation of [
+    () => validateDataset(data),
+    () => serializeBackup(data, now),
+    () => parseBackup(file),
+  ])
+    expect(await backupFailure(operation)).toBe(original);
+});
+
+test('earlier failures retain validation precedence and the generic fallback', async () => {
+  const data = fixture();
+  data.habits[0].versions[0].effectiveFrom = '2026-09-28';
+  data.habits[0].memberships = [];
+  expect((await backupFailure(() => validateDataset(data))).diagnostic?.rule).toBe(
+    'definition-timeline',
+  );
+  data.pillars.push({ ...data.pillars[0] });
+  const error = await backupFailure(() => validateDataset(data));
+  expect(error.code).toBe('invalid');
+  expect(error.diagnostic).toBeUndefined();
+});
+
 const corruptions: [string, (d: Dataset) => unknown][] = [
   [
     'duplicate pillars',
@@ -471,6 +610,40 @@ test.each(corruptions)('rejects structurally inconsistent facts: %s', (_name, co
   expect(() => validateDataset(corrupt(fixture()))).toThrow(BackupError);
 });
 
+test.each([
+  ['empty memberships', 'membership-timeline', 'habits.memberships'],
+  ['wrong first membership', 'membership-timeline', 'habits.memberships'],
+  ['unordered memberships', 'membership-timeline', 'habits.memberships'],
+  ['duplicate global periods', 'activation-identity-unique', 'habits'],
+  ['pending reuses period identity', 'activation-identity-unique', 'habits'],
+  ['dangling habit', 'occurrence-reference', 'occurrences'],
+  ['dangling snapshot pillar', 'occurrence-reference', 'occurrences'],
+  ['wrong activation linkage', 'occurrence-context', 'occurrences'],
+  ['precreation credit', 'occurrence-context', 'occurrences'],
+  ['unscheduled extra credit', 'occurrence-schedule', 'occurrences'],
+  ['optional not creation', 'occurrence-schedule', 'occurrences'],
+  ['true without credit provenance', 'occurrence-credit', 'occurrences.completionProvenance'],
+  ['true without lock', 'occurrence-credit', 'occurrences.completionProvenance'],
+  ['invented lock without credit', 'occurrence-credit', 'occurrences.completionProvenance'],
+  [
+    'unknown provenance without preservation lock',
+    'occurrence-credit',
+    'occurrences.completionProvenance',
+  ],
+])('safe relational diagnostic: %s', async (name, rule, location) => {
+  const corruption = corruptions.find(([label]) => label === name);
+  expect(corruption).toBeDefined();
+  const data = corruption![1](fixture()) as Dataset;
+  const expected = expect.objectContaining({
+    code: 'invalid',
+    message: 'Invalid or unsupported backup',
+    diagnostic: { rule, location },
+  });
+  expect(() => validateDataset(data)).toThrow(expected);
+  expect(() => serializeBackup(data, now)).toThrow(expected);
+  await expect(parseBackup(envelope(data))).rejects.toThrow(expected);
+});
+
 test('archived/awaiting, credited Undo, ambiguous legacy false and legal snapshot differences survive', async () => {
   const data = fixture();
   for (const h of data.habits)
@@ -583,6 +756,46 @@ function legacyFixture(): LegacyDataset {
   };
 }
 
+test('current and legacy validation preserve complete outputs without diagnostic metadata', async () => {
+  const current = fixture();
+  const legacy = legacyFixture();
+  const expected = { ...current, revision: 1 };
+  expect(validateDataset(current)).toEqual(current);
+  expect(validateDataset(legacy)).toEqual(expected);
+  expect(await parseBackup(envelope(legacy))).toEqual({
+    dataset: expected,
+    exportedAt: now.toISOString(),
+  });
+  const serialized = JSON.parse(await serializeBackup(expected, now).text());
+  const { revision: _revision, ...portable } = current;
+  expect(serialized).toEqual({
+    format: 'my-goat-journey-backup',
+    formatVersion: 1,
+    exportedAt: now.toISOString(),
+    dataset: portable,
+  });
+});
+
+test('safe relational diagnostics survive legacy migration while unidentified migration failures stay generic', async () => {
+  const legacy = legacyFixture();
+  legacy.habits[0].versions[0].effectiveFrom = '2026-09-28';
+  for (const operation of [() => validateDataset(legacy), () => parseBackup(envelope(legacy))]) {
+    const error = await backupFailure(operation);
+    expect(error.code).toBe('invalid');
+    expect(error.diagnostic).toEqual({
+      rule: 'definition-timeline',
+      location: 'habits.versions',
+    });
+  }
+  legacy.occurrences[0].habitId = 'FICTIONAL_PRIVATE_MISSING_LEGACY_HABIT';
+  const error = await backupFailure(() => parseBackup(envelope(legacy)));
+  expect(error.code).toBe('invalid');
+  expect(error.diagnostic).toBeUndefined();
+  expect(JSON.stringify(Object.getOwnPropertyDescriptors(error))).not.toContain(
+    legacy.occurrences[0].habitId,
+  );
+});
+
 test('schema one migrates exact true and false historical snapshots without inferring false credit', async () => {
   const old = legacyFixture();
   old.occurrences.push({ ...old.occurrences[0], date: '2026-10-02', done: false });
@@ -619,11 +832,13 @@ test.each([-1, 0, 1])(
     data.habits[0].versions[0].goal += 'x'.repeat(target - base.size);
     const before = structuredClone(data);
     if (delta > 0) {
-      expect(() => serializeBackup(data, now)).toThrow(expect.objectContaining({ code: 'size' }));
+      expect(() => serializeBackup(data, now)).toThrow(
+        expect.objectContaining({ code: 'size', diagnostic: undefined }),
+      );
       const raw = envelope((({ revision: _r, ...portable }) => portable)(data));
       expect(raw.size).toBe(target);
       const read = vi.spyOn(raw, 'arrayBuffer');
-      await expect(parseBackup(raw)).rejects.toMatchObject({ code: 'size' });
+      await expect(parseBackup(raw)).rejects.toMatchObject({ code: 'size', diagnostic: undefined });
       expect(read).not.toHaveBeenCalled();
     } else {
       const blob = serializeBackup(data, now);
@@ -665,7 +880,7 @@ test('supported old file at the limit is rejected when complete current-schema m
   const file = envelope(old);
   expect(file.size).toBe(MAX_BACKUP_BYTES);
   const before = structuredClone(old);
-  await expect(parseBackup(file)).rejects.toMatchObject({ code: 'size' });
+  await expect(parseBackup(file)).rejects.toMatchObject({ code: 'size', diagnostic: undefined });
   expect(old).toEqual(before);
 }, 30_000);
 

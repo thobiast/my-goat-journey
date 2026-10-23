@@ -26,20 +26,39 @@ import { pillarHasProspectiveHabits } from '../domain/pillars';
 import { progressIntervalOrDefault } from '../domain/preferences';
 
 export const MAX_BACKUP_BYTES = 20 * 1024 * 1024;
+// Internal-only rule/schema metadata: never include diary values or exception causes.
+export interface BackupDiagnostic {
+  readonly rule:
+    | 'definition-timeline'
+    | 'membership-timeline'
+    | 'activation-identity-unique'
+    | 'occurrence-reference'
+    | 'occurrence-context'
+    | 'occurrence-schedule'
+    | 'occurrence-credit';
+  readonly location:
+    | 'habits.versions'
+    | 'habits.memberships'
+    | 'habits'
+    | 'occurrences'
+    | 'occurrences.completionProvenance';
+}
+
 export class BackupError extends Error {
   constructor(
     public readonly code: 'invalid' | 'size',
     message = code === 'size'
       ? 'Backup exceeds the supported 20 MiB limit'
       : 'Invalid or unsupported backup',
+    public readonly diagnostic?: BackupDiagnostic,
   ) {
     super(message);
     this.name = 'BackupError';
   }
 }
 
-function invalid(): never {
-  throw new BackupError('invalid');
+function invalid(diagnostic?: BackupDiagnostic): never {
+  throw new BackupError('invalid', undefined, diagnostic);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -238,17 +257,21 @@ function goal(raw: unknown): OnboardingGoal {
   return result;
 }
 
-function unique(ids: string[]): void {
-  if (new Set(ids).size !== ids.length) invalid();
+function unique(ids: string[], diagnostic?: BackupDiagnostic): void {
+  if (new Set(ids).size !== ids.length) invalid(diagnostic);
 }
 
-function ordered(history: { effectiveFrom: string }[], createdOn: string): void {
+function ordered(
+  history: { effectiveFrom: string }[],
+  createdOn: string,
+  diagnostic?: BackupDiagnostic,
+): void {
   if (
     !history.length ||
     history[0].effectiveFrom !== createdOn ||
     history.some((v, i) => i > 0 && history[i - 1].effectiveFrom >= v.effectiveFrom)
   )
-    invalid();
+    invalid(diagnostic);
 }
 
 /** Validate relationships only after all primitive values have been reconstructed. */
@@ -273,8 +296,14 @@ function validateFacts(data: Dataset): void {
   }
   const identities: string[] = [];
   for (const h of data.habits) {
-    ordered(h.versions, h.createdOn);
-    ordered(h.memberships, h.createdOn);
+    ordered(h.versions, h.createdOn, {
+      rule: 'definition-timeline',
+      location: 'habits.versions',
+    });
+    ordered(h.memberships, h.createdOn, {
+      rule: 'membership-timeline',
+      location: 'habits.memberships',
+    });
     if (
       h.memberships.some((m) => !pillars.has(m.pillarId)) ||
       !h.periods.length ||
@@ -322,22 +351,26 @@ function validateFacts(data: Dataset): void {
   for (const p of data.pillars) {
     if (p.removedOn && pillarHasProspectiveHabits(data, p.id, p.removedOn)) invalid();
   }
-  unique(identities);
+  unique(identities, { rule: 'activation-identity-unique', location: 'habits' });
   unique(data.occurrences.map((o) => JSON.stringify([o.habitId, o.date])));
   const habits = new Map(data.habits.map((h) => [h.id, h]));
   for (const o of data.occurrences) {
     const h = habits.get(o.habitId);
-    if (!h || !pillars.has(o.pillarId)) invalid();
+    if (!h || !pillars.has(o.pillarId))
+      invalid({ rule: 'occurrence-reference', location: 'occurrences' });
     const p = activationAt(h, o.date);
     const v = definitionAt(h, o.date);
-    if (!p || p.id !== o.activationId || !v || o.date < h.createdOn) invalid();
+    if (!p || p.id !== o.activationId || !v || o.date < h.createdOn)
+      invalid({ rule: 'occurrence-context', location: 'occurrences' });
     if (o.date === h.createdOn) {
       if (o.kind !== 'optional' || o.pillarParticipation !== 'on-completion') invalid();
-    } else if (o.kind !== 'required' || !v.weekdays.includes(weekday(o.date))) invalid();
+    } else if (o.kind !== 'required' || !v.weekdays.includes(weekday(o.date)))
+      invalid({ rule: 'occurrence-schedule', location: 'occurrences' });
     if (o.completionProvenance === 'never-credited') {
-      if (o.done || o.assignmentLocked) invalid();
+      if (o.done || o.assignmentLocked)
+        invalid({ rule: 'occurrence-credit', location: 'occurrences.completionProvenance' });
     } else if (!o.assignmentLocked || (o.completionProvenance === 'legacy-unknown' && o.done))
-      invalid();
+      invalid({ rule: 'occurrence-credit', location: 'occurrences.completionProvenance' });
     // Archive may mark both retained Done and exempt unfinished facts; Undo keeps it.
     if (o.exempt && (p.end !== o.date || p.archivedOn !== o.date)) invalid();
     if (

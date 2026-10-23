@@ -330,6 +330,18 @@ no stored interval preference. There are no reminder or theme settings.
 `src/data/backup.ts` exports `MAX_BACKUP_BYTES`, `BackupError` (code `invalid` or
 `size`), `validateDataset`, `serializeBackup` and asynchronous `parseBackup`.
 
+`BackupError.diagnostic?` is internal-only typed `{ rule, location }` metadata.
+Selected relational rules cover definition/membership timeline ordering and origins,
+unique activation identities (including pending intents), occurrence entity references,
+activation/definition/date context, non-creation schedule eligibility, and completion
+provenance/assignment-lock consistency. Locations are fixed schema field names, not
+entity IDs, dates or user-provided property names. Other failures retain the generic
+fallback. Public codes, generic messages and EN/PT feedback are unchanged; wrapping
+boundaries preserve existing `BackupError` instances and their diagnostics. Never
+retain input objects/text/bytes, filenames, diary values or arbitrary exception
+messages/causes (including JSON parse errors) in diagnostics. Do not display, persist,
+export, automatically log or transmit diagnostics.
+
 ### Portable format and validation
 
 - Envelope: `format: 'my-goat-journey-backup'`, `formatVersion: 1`, `exportedAt`
