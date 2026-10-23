@@ -58,6 +58,15 @@ import { usePageHeadingFocus } from './usePageHeadingFocus';
 const repository = new Repository();
 const emptyDraft = emptyOnboardingDraft;
 type ErrorMessage = 'saveError' | 'staleError' | 'historicalConflict' | 'goalError';
+type SnapshotAcceptance =
+  | { kind: 'queue-result'; adoptSnapshot: boolean }
+  | { kind: 'committed-display' }
+  | {
+      kind: 'refresh-display';
+      source: 'local-reconciliation' | 'external';
+      review: boolean;
+    }
+  | { kind: 'confirmed-replacement' };
 type ReturnOrigin = {
   route: Route;
   y: number;
@@ -296,7 +305,7 @@ export function App() {
       const state = await work();
       // Export may read/reconcile newer facts without adopting them into the UI.
       // Its revision must not authorize mutations from the older rendered snapshot.
-      if (adoptSnapshot) committed.current = state;
+      acceptSnapshot(state, { kind: 'queue-result', adoptSnapshot });
       return state;
     });
     const settled = result.finally(() => {
@@ -357,7 +366,7 @@ export function App() {
     try {
       const state = await enqueue(work, observedEpoch);
       if (observedEpoch !== epoch.current) return;
-      setData(state);
+      acceptSnapshot(state, { kind: 'committed-display' });
       if (notify) channel.current?.postMessage({ revision: state.revision });
       if (token === feedbackVersion.current) {
         retry.current = null;
@@ -439,6 +448,40 @@ export function App() {
     setFormEpoch((n) => n + 1);
   }
 
+  function acceptSnapshot(
+    state: Dataset,
+    intent: Extract<SnapshotAcceptance, { kind: 'refresh-display' }>,
+  ): boolean;
+  function acceptSnapshot(
+    state: Dataset,
+    intent: Exclude<SnapshotAcceptance, { kind: 'refresh-display' }>,
+  ): void;
+  function acceptSnapshot(state: Dataset, intent: SnapshotAcceptance): boolean | void {
+    switch (intent.kind) {
+      case 'queue-result':
+        if (intent.adoptSnapshot) committed.current = state;
+        return;
+      case 'committed-display':
+        // Publication must not rewind authority already adopted by later queued work.
+        setData(state);
+        return;
+      case 'refresh-display':
+        if (state.revision === dataRevision.current && !intent.review) return false;
+        // Only a revision-guarded local reconciliation preserves unrelated forms.
+        if (intent.source === 'local-reconciliation') {
+          setData(state);
+          return false;
+        }
+        clearPersonalState(state);
+        setData(state);
+        return true;
+      case 'confirmed-replacement':
+        // Commit has already published and broadcast before its success callback.
+        clearPersonalState(state);
+        return;
+    }
+  }
+
   async function reloadCurrent(peer = false, review = false, lifecycleRefresh = false) {
     if (transitionLocked.current) return;
     ++operationActive.current;
@@ -464,57 +507,53 @@ export function App() {
         epoch.current,
         { lifecycleRefresh },
       );
-      if (state.revision !== dataRevision.current || review) {
-        // A revision-guarded load can only reconcile our known lifecycle facts.
-        // Preserve unrelated form identity; external changes still invalidate it.
-        if (locallyReconciled) {
-          setData(state);
-          return;
-        }
-        clearPersonalState(state);
-        setData(state);
+      const needsRouteRecovery = acceptSnapshot(state, {
+        kind: 'refresh-display',
+        source: locallyReconciled ? 'local-reconciliation' : 'external',
+        review,
+      });
+      if (needsRouteRecovery !== true) return;
 
-        const valid = (target: Route): Route => {
-          if (target.screen === 'progressDay') {
-            const { scope } = target;
-            if (
-              scope.kind !== 'all' &&
-              !(scope.kind === 'habit' ? state.habits : state.pillars).some(
-                (item) => item.id === scope.id,
-              )
+      const valid = (target: Route): Route => {
+        if (target.screen === 'progressDay') {
+          const { scope } = target;
+          if (
+            scope.kind !== 'all' &&
+            !(scope.kind === 'habit' ? state.habits : state.pillars).some(
+              (item) => item.id === scope.id,
             )
-              return { screen: 'progress' };
-          }
-          if (target.habitId && !state.habits.some((h) => h.id === target.habitId))
+          )
             return { screen: 'progress' };
-          if (target.pillarId && !state.pillars.some((p) => p.id === target.pillarId))
-            return { screen: 'pillars' };
-          return target;
-        };
+        }
+        if (target.habitId && !state.habits.some((h) => h.id === target.habitId))
+          return { screen: 'progress' };
+        if (target.pillarId && !state.pillars.some((p) => p.id === target.pillarId))
+          return { screen: 'pillars' };
+        return target;
+      };
 
-        settingsReturn.current = valid(settingsReturn.current);
-        detailReturn.current = valid(detailReturn.current);
-        pillarHistoryReturn.current = valid(pillarHistoryReturn.current);
-        returnRoute.current = valid(returnRoute.current);
-        const interval = progressIntervalOrDefault(state.settings.progressInterval);
-        setProgressView((previous) =>
-          !state.onboardingComplete
-            ? initialProgressViewFor(state.settings)
-            : previous.interval === interval
-              ? previous
-              : { ...previous, interval, offset: 0 },
-        );
-        setRoute((previous) =>
-          !state.onboardingComplete
-            ? { screen: 'today' }
-            : previous.screen === 'editHabit'
-              ? valid({ screen: 'habitDetail', habitId: previous.habitId })
-              : ['habit', 'pillar'].includes(previous.screen)
-                ? { screen: 'pillars' }
-                : valid(previous),
-        );
-        if (peer && !review) setError('staleError');
-      }
+      settingsReturn.current = valid(settingsReturn.current);
+      detailReturn.current = valid(detailReturn.current);
+      pillarHistoryReturn.current = valid(pillarHistoryReturn.current);
+      returnRoute.current = valid(returnRoute.current);
+      const interval = progressIntervalOrDefault(state.settings.progressInterval);
+      setProgressView((previous) =>
+        !state.onboardingComplete
+          ? initialProgressViewFor(state.settings)
+          : previous.interval === interval
+            ? previous
+            : { ...previous, interval, offset: 0 },
+      );
+      setRoute((previous) =>
+        !state.onboardingComplete
+          ? { screen: 'today' }
+          : previous.screen === 'editHabit'
+            ? valid({ screen: 'habitDetail', habitId: previous.habitId })
+            : ['habit', 'pillar'].includes(previous.screen)
+              ? { screen: 'pillars' }
+              : valid(previous),
+      );
+      if (peer && !review) setError('staleError');
     } catch {
       if (peer || review) setError('saveError');
     } finally {
@@ -525,6 +564,7 @@ export function App() {
   }
 
   const dataRevision = useRef<number | undefined>(undefined);
+  // Render bookkeeping only; queued authority advances independently of publication.
   dataRevision.current = data?.revision;
   useEffect(() => {
     if (loadStarted.current) return;
@@ -797,7 +837,7 @@ export function App() {
       .then((state) => {
         if (observedEpoch !== epoch.current) return;
         if (version === draftVersion.current) onboardingUnsaved.current = false;
-        setData(state);
+        acceptSnapshot(state, { kind: 'committed-display' });
         channel.current?.postMessage({ revision: state.revision });
         if (version === draftVersion.current && feedback === feedbackVersion.current) {
           setStatus(copy.draftSaved);
@@ -1530,7 +1570,7 @@ export function App() {
             void commit(
               () => repository.resetDataset(revision, deviceClock.now()),
               (state) => {
-                clearPersonalState(state);
+                acceptSnapshot(state, { kind: 'confirmed-replacement' });
                 setProgressView(initialProgressViewFor(state.settings));
                 navigate({ screen: 'today' }, true);
                 setStatus((state.settings.language === 'pt' ? pt : en).dataDeleted);
@@ -1541,7 +1581,7 @@ export function App() {
             void commit(
               () => repository.replaceDataset(candidate, revision, deviceClock.now()),
               (state) => {
-                clearPersonalState(state);
+                acceptSnapshot(state, { kind: 'confirmed-replacement' });
                 // Consume once after the Settings remount, without scrolling or delayed callbacks.
                 if (state.onboardingComplete)
                   replacementFocus.current = {

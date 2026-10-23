@@ -246,6 +246,15 @@ version **1**, object store `dataset`, key `current`.
   rejects without writing or blind Retry, and requires explicit reload/review;
   export alone does not discard drafts or reapply them to newer facts.
 
+App's synchronous, local `acceptSnapshot` owns internal queue-result adoption,
+React publication, refresh classification/invalidation and success-only confirmed
+replacement invalidation. These remain separate phases: display publication does
+not reassign queued mutation authority, and `dataRevision` mirrors the rendered
+snapshot only. External/review refresh invalidates before publication; confirmed
+restore/reset invalidate in their current success callback after publication and
+broadcast. Only refresh returns whether its caller should recover route/view state;
+navigation, feedback, focus and asynchronous guards stay with their existing owners.
+
 The optional `revision?` arguments below are expected local revisions; replacement
 and reset require `expectedRevision`.
 

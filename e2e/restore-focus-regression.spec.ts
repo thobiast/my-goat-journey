@@ -129,6 +129,125 @@ for (const language of ['en', 'pt'] as const) {
   });
 }
 
+type RestoreFailureProbeWindow = Window & {
+  restoreFailureProbe?: {
+    headings: string[];
+    abortedWrites: number;
+    cleanup: () => void;
+  };
+};
+
+for (const language of ['en', 'pt'] as const)
+  test(`native restore abort preserves facts without success focus; successful Retry focuses Settings once (${language})`, async ({
+    page,
+  }) => {
+    await setupScheduledHabits(page);
+    // Avoid onboarding's incidental heading transition when measuring restore focus.
+    await page.reload();
+    await expect(page.getByRole('heading', { name: en.today, exact: true })).toBeVisible();
+    await nav(page, en.settingsNav).click();
+    if (language === 'pt') {
+      await page.getByLabel(en.language, { exact: true }).selectOption('pt');
+      await expect(page.getByRole('heading', { name: pt.settings, exact: true })).toBeVisible();
+    }
+    const copy = language === 'en' ? en : pt;
+    const candidate = await readDataset(page);
+    const { revision: _revision, ...dataset } = candidate;
+    // A real UI change makes replacement observably different, not a semantic no-op.
+    const reducedMotion = page.getByRole('checkbox', { name: copy.reducedMotion, exact: true });
+    await reducedMotion.click();
+    await expect(reducedMotion).toBeChecked();
+    const before = await readDataset(page);
+    expect(before.settings).not.toEqual(dataset.settings);
+    await page.getByLabel(copy.chooseBackup, { exact: true }).setInputFiles({
+      name: 'fictional-native-abort-focus.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(
+        JSON.stringify({
+          format: 'my-goat-journey-backup',
+          formatVersion: 1,
+          exportedAt: '2026-09-27T12:00:00.000Z',
+          dataset,
+        }),
+      ),
+    });
+    const replace = page
+      .locator('.settings-section .confirmation')
+      .getByRole('button', { name: copy.replaceData, exact: true });
+    await expect(replace).toBeVisible();
+    await replace.focus();
+    await page.evaluate(() => {
+      const put = IDBObjectStore.prototype.put;
+      const focus = HTMLHeadingElement.prototype.focus;
+      const probe = {
+        headings: [] as string[],
+        abortedWrites: 0,
+        cleanup: () => {
+          IDBObjectStore.prototype.put = put;
+          HTMLHeadingElement.prototype.focus = focus;
+        },
+      };
+      (window as RestoreFailureProbeWindow).restoreFailureProbe = probe;
+      HTMLHeadingElement.prototype.focus = function (options) {
+        if (this.tagName === 'H1') probe.headings.push(this.textContent ?? '');
+        focus.call(this, options);
+      };
+      IDBObjectStore.prototype.put = function (...args: Parameters<typeof put>) {
+        IDBObjectStore.prototype.put = put;
+        const request = put.apply(this, args);
+        probe.abortedWrites++;
+        this.transaction.abort();
+        return request;
+      };
+    });
+    try {
+      await page.keyboard.press('Enter');
+      await expect(page.getByRole('alert')).toContainText(copy.saveError);
+      expect(await readDataset(page)).toEqual(before);
+      await expect(page.getByText(copy.backupRestored, { exact: true })).toHaveCount(0);
+      const heading = page.getByRole('heading', {
+        name: copy.settings,
+        exact: true,
+        level: 1,
+      });
+      await expect(heading).not.toBeFocused();
+      expect(
+        await page.evaluate(() => {
+          const probe = (window as RestoreFailureProbeWindow).restoreFailureProbe!;
+          return { headings: probe.headings, abortedWrites: probe.abortedWrites };
+        }),
+      ).toEqual({ headings: [], abortedWrites: 1 });
+      const retry = page.getByRole('button', { name: copy.retry, exact: true });
+      await retry.focus();
+      await retry.press('Enter');
+      await expect(page.getByRole('status').filter({ hasText: copy.backupRestored })).toHaveText(
+        copy.backupRestored,
+      );
+      await expect(heading).toBeFocused();
+      expect(await readDataset(page)).toEqual({ ...dataset, revision: before.revision + 1 });
+      await expect(reducedMotion).not.toBeChecked();
+      // Once consumed, ordinary rendering and a native lifecycle read cannot replay it.
+      const file = page.getByLabel(copy.chooseBackup, { exact: true });
+      await file.focus();
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      await page.clock.runFor(100);
+      await expect(file).toBeFocused();
+      expect(
+        await page.evaluate(() => {
+          const probe = (window as RestoreFailureProbeWindow).restoreFailureProbe!;
+          return { headings: probe.headings, abortedWrites: probe.abortedWrites };
+        }),
+      ).toEqual({ headings: [copy.settings], abortedWrites: 1 });
+      expect(await readDataset(page)).toEqual({ ...dataset, revision: before.revision + 1 });
+    } finally {
+      await page.evaluate(() => {
+        const target = window as RestoreFailureProbeWindow;
+        target.restoreFailureProbe?.cleanup();
+        delete target.restoreFailureProbe;
+      });
+    }
+  });
+
 for (const language of ['en', 'pt'] as const)
   test(`restore cancel returns keyboard focus without writing or stealing deletion focus (${language})`, async ({
     page,

@@ -130,6 +130,174 @@ for (const reconcile of [false, true]) {
   });
 }
 
+for (const reconcile of [false, true]) {
+  test(`Native export from stale UI cannot authorize Save after a UI-created peer replacement (reconcile: ${reconcile})`, async ({
+    page,
+    context,
+    browser,
+  }) => {
+    const replacementGoal = 'A separately reviewed fictional walk';
+    const fixture = await browser.newPage();
+    let candidate: Awaited<ReturnType<typeof readDataset>>;
+    try {
+      await fixture.clock.install({ time: new Date('2026-09-27T12:00:00') });
+      await fixture.goto('./');
+      await fixture.getByRole('button', { name: 'Start', exact: true }).click();
+      for (const [index, goal] of scheduledHabitGoals.entries()) {
+        await expect(
+          fixture.getByRole('heading', {
+            name: ['Mind', 'Body', 'Nutrition', 'Hygiene'][index],
+            exact: true,
+          }),
+        ).toBeVisible();
+        await fixture
+          .getByLabel('What do you want to do?')
+          .fill(index === 1 ? replacementGoal : goal);
+        const excluded =
+          index === 1
+            ? ['Sunday', 'Monday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+            : ['Sunday', 'Tuesday', 'Thursday', 'Saturday'];
+        for (const day of excluded)
+          await fixture.getByRole('button', { name: day, exact: true }).click();
+        await fixture.getByRole('button', { name: 'Continue', exact: true }).click();
+      }
+      await fixture.getByRole('button', { name: 'Start my journey', exact: true }).click();
+      await expect(fixture.getByRole('heading', { name: en.today, exact: true })).toBeVisible();
+      if (reconcile) {
+        await openHabit(fixture, scheduledHabitGoals[0]);
+        await fixture.getByRole('button', { name: en.archiveHabit, exact: true }).click();
+        await fixture.getByRole('button', { name: en.archiveHabit, exact: true }).click();
+        await fixture.getByRole('button', { name: en.reactivateHabit, exact: true }).click();
+        await fixture.getByRole('button', { name: en.reactivateHabit, exact: true }).click();
+        await expect(fixture.getByText('Awaiting resumption', { exact: true })).toBeVisible();
+      }
+      candidate = await readDataset(fixture);
+    } finally {
+      await fixture.close();
+    }
+
+    await setupScheduledHabits(page);
+    await nav(page, en.settingsNav).click();
+    const before = await readDataset(page);
+    expect(candidate.habits[1].id).not.toBe(before.habits[1].id);
+    const peer = await context.newPage();
+    try {
+      await peer.clock.install({ time: new Date('2026-09-27T12:00:00') });
+      await peer.goto('./');
+      await nav(peer, en.settingsNav).click();
+      // Suppress only this tab's delivery; persistence and restore remain native.
+      await peer.evaluate(() => {
+        const postMessage = BroadcastChannel.prototype.postMessage;
+        BroadcastChannel.prototype.postMessage = function () {};
+        Object.assign(window, {
+          restorePeerDelivery: () => {
+            BroadcastChannel.prototype.postMessage = postMessage;
+          },
+        });
+      });
+      const { revision: _candidateRevision, ...dataset } = candidate;
+      await peer.getByLabel(en.chooseBackup, { exact: true }).setInputFiles({
+        name: 'ui-created-fictional-peer.json',
+        mimeType: 'application/json',
+        buffer: Buffer.from(
+          JSON.stringify({
+            format: 'my-goat-journey-backup',
+            formatVersion: 1,
+            exportedAt: '2026-09-27T12:00:00.000Z',
+            dataset,
+          }),
+        ),
+      });
+      await expect(peer.getByRole('heading', { name: en.backupReady, exact: true })).toBeVisible();
+      await peer.getByRole('button', { name: en.replaceData, exact: true }).click();
+      await expect(peer.getByText(en.backupRestored, { exact: true })).toBeVisible();
+      const replaced = await readDataset(peer);
+      expect(replaced).toEqual({ ...dataset, revision: before.revision + 1 });
+      expect(await readDataset(page)).toEqual(replaced);
+
+      if (reconcile) {
+        expect(replaced.habits[0].pendingReactivation).toBeDefined();
+        // Do not run midnight timers or dispatch resume: only export may reconcile.
+        await page.clock.setFixedTime(new Date('2026-09-28T12:00:00'));
+      }
+      const pending = page.waitForEvent('download');
+      await page.getByRole('button', { name: en.exportBackup, exact: true }).click();
+      const download = await pending;
+      expect(download.suggestedFilename()).toBe(
+        `my-goat-journey-backup-2026-09-${reconcile ? '28' : '27'}_12-00.json`,
+      );
+      const backup = JSON.parse(await readFile((await download.path())!, 'utf8'));
+      const exported = await readDataset(page);
+      expect(exported.revision).toBe(replaced.revision + (reconcile ? 1 : 0));
+      if (reconcile) {
+        expect(exported.habits[0].pendingReactivation).toBeUndefined();
+        expect(exported.habits[0].periods).toHaveLength(replaced.habits[0].periods.length + 1);
+        expect(exported.habits[0].periods.at(-1)?.start).toBe('2026-09-28');
+        expect(exported.habits[1]).toEqual(replaced.habits[1]);
+      } else {
+        expect(exported).toEqual(replaced);
+      }
+      const { revision: _exportedRevision, ...portable } = exported;
+      expect(backup.dataset).toEqual(portable);
+
+      await openHabit(page);
+      await page.getByRole('button', { name: en.editHabit, exact: true }).click();
+      const input = page.getByLabel('Habit', { exact: true });
+      await expect(input).toHaveValue(scheduledHabitGoals[1]);
+      await expect(page.getByRole('button', { name: 'Monday', exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      const literal = '  Manually re-enter this fictional walk {goal}  ';
+      await input.fill(literal);
+      await page.getByRole('button', { name: en.saveChanges, exact: true }).click();
+      await expect(page.getByRole('alert')).toContainText(en.staleError);
+      expect(await readDataset(page)).toEqual(exported);
+      await expect(input).toHaveValue(literal);
+      await expect(page.getByRole('button', { name: en.retry, exact: true })).toHaveCount(0);
+
+      await page.getByRole('button', { name: en.reload, exact: true }).click();
+      await expect(input).toHaveCount(0);
+      await openHabit(page, replacementGoal);
+      expect(await readDataset(page)).toEqual(exported);
+      await page.getByRole('button', { name: en.editHabit, exact: true }).click();
+      await expect(input).toHaveValue(replacementGoal);
+      await expect(page.getByRole('button', { name: 'Tuesday', exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      await expect(page.getByRole('button', { name: 'Monday', exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'false',
+      );
+      // This is a new user decision after review, never an automatic draft rebase.
+      await input.fill(literal);
+      await page.getByRole('button', { name: en.saveChanges, exact: true }).click();
+      await expect(input).toHaveCount(0);
+      const saved = await readDataset(page);
+      expect(saved.habits[1].versions.at(-1)).toMatchObject({ goal: literal, weekdays: [2] });
+      expect(saved.habits[1].versions.slice(0, -1)).toEqual(exported.habits[1].versions);
+      expect(saved).toEqual({
+        ...exported,
+        revision: exported.revision + 1,
+        habits: exported.habits.map((habit, index) =>
+          index === 1 ? { ...habit, versions: saved.habits[1].versions } : habit,
+        ),
+      });
+      await page.reload();
+      await expect(page.getByRole('heading', { name: en.today, exact: true })).toBeVisible();
+      expect(await readDataset(page)).toEqual(saved);
+    } finally {
+      if (!peer.isClosed()) {
+        await peer.evaluate(() => {
+          (window as Window & { restorePeerDelivery?: () => void }).restorePeerDelivery?.();
+        });
+        await peer.close();
+      }
+    }
+  });
+}
+
 test('Same-instance export retains the revision needed for an ordinary goal-only edit', async ({
   page,
 }) => {
