@@ -2,11 +2,19 @@ import { createHash } from 'node:crypto';
 import { resolveConfig } from 'vite';
 import { buildProductionApp } from '../helpers/production-build';
 import { existsSync, readFileSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { expect, test } from 'vitest';
+import { expect, onTestFinished, test } from 'vitest';
 
-const output = resolve('artifacts/pwa-worker/build-root');
+async function temporaryBuildOutput() {
+  const output = await mkdtemp(resolve(tmpdir(), 'pwa-build-'));
+  onTestFinished(() => rm(output, { recursive: true, force: true }));
+  return output;
+}
+
 test('production build emits a base-aware precached shell service worker', async () => {
+  const output = await temporaryBuildOutput();
   const parentNodeEnv = process.env.NODE_ENV;
   expect(parentNodeEnv).toBe('test');
   const environment = await buildProductionApp({ base: '/', output });
@@ -45,24 +53,26 @@ test('production build emits a base-aware precached shell service worker', async
 }, 30_000);
 
 test('identical final shell bytes reproduce the worker, changed HTML changes its version', async () => {
-  const repeat = resolve('artifacts/pwa-worker/build-repeat');
+  const reference = await temporaryBuildOutput();
+  await buildProductionApp({ base: '/', output: reference });
+  const repeat = await temporaryBuildOutput();
   await buildProductionApp({ base: '/', output: repeat });
-  expect(readFileSync(`${repeat}/sw.js`, 'utf8')).toBe(readFileSync(`${output}/sw.js`, 'utf8'));
-  const changed = resolve('artifacts/pwa-worker/build-changed');
+  expect(readFileSync(`${repeat}/sw.js`, 'utf8')).toBe(readFileSync(`${reference}/sw.js`, 'utf8'));
+  const changed = await temporaryBuildOutput();
   await buildProductionApp({ base: '/', output: changed, changedHtml: true });
   expect(readFileSync(`${changed}/index.html`, 'utf8')).not.toBe(
-    readFileSync(`${output}/index.html`, 'utf8'),
+    readFileSync(`${reference}/index.html`, 'utf8'),
   );
 
   const metadata = (directory: string) =>
     JSON.parse(readFileSync(`${directory}/sw.js`, 'utf8').match(/const CONFIG = (.+);/)![1]);
 
-  expect(metadata(changed).version).not.toBe(metadata(output).version);
-}, 30_000);
+  expect(metadata(changed).version).not.toBe(metadata(reference).version);
+}, 60_000);
 
 test('prefixed build precaches only its own base and unchanged manifest identity', async () => {
   const prefix = '/my-goat-journey/';
-  const directory = resolve('artifacts/pwa-worker/build-prefix');
+  const directory = await temporaryBuildOutput();
   await buildProductionApp({ base: prefix, output: directory });
   const metadata = JSON.parse(
     readFileSync(`${directory}/sw.js`, 'utf8').match(/const CONFIG = (.+);/)![1],
