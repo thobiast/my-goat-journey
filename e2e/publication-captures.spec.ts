@@ -277,6 +277,7 @@ test('landing is responsive, local-only and does not access diary storage', asyn
       'language.js',
       'translations.js',
       'demonstrations.js',
+      'habit-catalog.js',
       'tour.js',
       'installation.js',
     ]

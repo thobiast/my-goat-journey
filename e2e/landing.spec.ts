@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { mkdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { landingExamples, defaultLandingDemoIds } from '../tests/fixtures/landing-catalog';
 
 async function chooseLanguage(page: Page, language: string) {
   await page
@@ -103,20 +104,7 @@ test('canonical pillar geometry is reused in every idea and both Today demonstra
     if (!match) throw new Error(`Missing canonical ${kind} icon path in PillarIcon.tsx`);
     expected[kind] = [match[1]];
   }
-  const mapping = [
-    'mind',
-    'body',
-    'nutrition',
-    'hygiene',
-    'body',
-    'body',
-    'mind',
-    'mind',
-    'body',
-    'mind',
-    'mind',
-    'mind',
-  ];
+
   await page.goto('./');
   await expect(page.locator('.idea')).toHaveCount(12);
   for (const kind of ['mind', 'body', 'nutrition', 'hygiene']) {
@@ -128,14 +116,13 @@ test('canonical pillar geometry is reused in every idea and both Today demonstra
     ).toEqual(expected[kind]);
     await expect(item.locator('svg')).toHaveAttribute('aria-hidden', 'true');
   }
-  for (let i = 0; i < mapping.length; i++) {
+  for (const { id, pillar } of landingExamples) {
     expect(
       await page
-        .locator('.idea')
-        .nth(i)
+        .locator(`[data-idea="${id}"]`)
         .locator('svg path')
         .evaluateAll((paths) => paths.map((path) => path.getAttribute('d'))),
-    ).toEqual(expected[mapping[i]]);
+    ).toEqual(expected[pillar]);
   }
   await page.locator('[data-view="today"]').click();
   for (const demo of ['#hero-demo', '#tour-today']) {
@@ -147,6 +134,19 @@ test('canonical pillar geometry is reused in every idea and both Today demonstra
           .locator('path')
           .evaluateAll((paths) => paths.map((path) => path.getAttribute('d'))),
       ).toEqual(expected[kind]);
+      await expect(icon).toHaveAttribute('aria-hidden', 'true');
+    }
+  }
+  await page.locator('#more-ideas summary').click();
+  for (const { id, pillar } of landingExamples) {
+    await page.locator(`[data-idea="${id}"]`).click();
+    for (const demo of ['#hero-demo', '#tour-today']) {
+      const icon = page.locator(`${demo} [data-pillar="${pillar}"] .group-heading svg`);
+      expect(
+        await icon
+          .locator('path')
+          .evaluateAll((paths) => paths.map((path) => path.getAttribute('d'))),
+      ).toEqual(expected[pillar]);
       await expect(icon).toHaveAttribute('aria-hidden', 'true');
     }
   }
@@ -210,7 +210,7 @@ test('pillars introduce life areas before the tour and all four initial ideas', 
     );
     const names = await page.locator('.idea strong').allTextContents();
     expect(new Set(names).size).toBe(12);
-    await expect(page.locator('#additional-ideas strong').nth(3)).toHaveText(
+    await expect(page.locator('[data-idea="practice-english"] strong')).toHaveText(
       english ? 'Practice English' : 'Praticar inglês',
     );
   }
@@ -222,7 +222,7 @@ test('completed habits retain neutral background and normal text in both preview
   await page.goto('./');
   await page.locator('[data-view="today"]').click();
   for (const demo of ['#hero-demo', '#tour-today']) {
-    const row = page.locator(`${demo} [data-habit="0"]`);
+    const row = page.locator(`${demo} [data-habit="read-book"]`);
     const check = row.getByRole('checkbox');
     await check.uncheck();
 
@@ -367,9 +367,9 @@ test('keyboard controls, feedback expiry, reduced motion, FAQ and real app navig
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior)).toBe(
     'auto',
   );
-  await page.locator('.idea').nth(1).focus();
+  await page.locator('[data-idea="walk"]').focus();
   await page.keyboard.press('Enter');
-  await expect(page.locator('.idea').nth(1)).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-idea="walk"]')).toHaveAttribute('aria-pressed', 'true');
   const check = page.locator('#hero-demo input').first();
   await check.focus();
   await page.keyboard.press('Space');
@@ -807,8 +807,8 @@ test('twelve illustrative choices update an isolated checklist with coherent XP 
   await page.locator('#more-ideas summary').click();
   for (const locale of ['en', 'pt-BR']) {
     await chooseLanguage(page, locale);
-    for (let i = 0; i < 12; i++) {
-      const idea = page.locator('.idea').nth(i);
+    for (const { id } of landingExamples) {
+      const idea = page.locator(`[data-idea="${id}"]`);
       const action = await idea.locator('strong').textContent();
       const frequency = await idea.locator('.frequency').textContent();
       await idea.click();
@@ -842,6 +842,161 @@ test('twelve illustrative choices update an isolated checklist with coherent XP 
   await page.reload();
   await expect(hero.locator('.xp-badge')).toHaveText('60 XP');
 });
+
+for (const width of [390, 1440]) {
+  for (const reordered of [false, true]) {
+    test(`stable catalog identities at ${width}px with ${reordered ? 'reordered fixture' : 'published order'}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      const entries = reordered ? [...landingExamples].reverse() : landingExamples;
+      if (reordered) {
+        // Test-only module responses reorder presentation and copy independently.
+        // The real renderer runs unchanged; production has no injection API.
+        await page.route('**/assets/habit-catalog.js', (route) =>
+          route.fulfill({
+            contentType: 'text/javascript',
+            body: `export const habitCatalog = ${JSON.stringify(entries.map(({ id, pillar, placement }) => ({ id, pillar, placement })))};
+            export const defaultDemoIds = ${JSON.stringify(defaultLandingDemoIds)};`,
+          }),
+        );
+        const translations = await readFile('landing/assets/translations.js', 'utf8');
+        await page.route('**/assets/translations.js', (route) =>
+          route.fulfill({
+            contentType: 'text/javascript',
+            body: `${translations}\nfor (const t of Object.values(copy)) {
+            t.ideas = Object.fromEntries(Object.entries(t.ideas).sort(([a], [b]) => a.localeCompare(b)));
+          }`,
+          }),
+        );
+      }
+      await page.goto('./');
+      await page.locator('[data-view="today"]').click();
+      await page.locator('#more-ideas summary').click();
+      for (const placement of ['initial', 'additional']) {
+        expect(
+          await page
+            .locator(`#${placement}-ideas .idea`)
+            .evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).dataset.idea)),
+        ).toEqual(
+          entries.filter((entry) => entry.placement === placement).map((entry) => entry.id),
+        );
+      }
+      await expect(page.locator('[data-idea="read-book"]')).toHaveAttribute('aria-pressed', 'true');
+      const check = (demo: string, id: string) =>
+        page.locator(`${demo} [data-habit="${id}"] input`);
+      const select = async (id: string) => {
+        const idea = page.locator(`[data-idea="${id}"]`);
+        await idea.click();
+        await expect(idea).toBeFocused();
+        await expect(idea).toHaveAttribute('aria-pressed', 'true');
+      };
+      const totals = async (count: number, locale: string) => {
+        const xp = 50 + count * 10;
+        for (const demo of ['#hero-demo', '#tour-today']) {
+          await expect(page.locator(`${demo} .xp-badge`)).toHaveText(`${xp} XP`);
+          await expect(page.locator(`${demo} .completion-summary strong`)).toHaveText(
+            `${count}/4 ${locale === 'en' ? 'completed' : 'concluídos'}`,
+          );
+          await expect(page.locator(`${demo} progress`)).toHaveAttribute('value', String(count));
+          await expect(page.locator(`${demo} progress`)).toHaveAttribute('max', '4');
+        }
+        await expect(page.locator('#journey-strip progress')).toHaveAttribute('value', String(xp));
+        await expect(page.locator('#journey-view progress')).toHaveAttribute('value', String(xp));
+      };
+      await totals(1, 'en');
+      for (const demo of ['#hero-demo', '#tour-today']) {
+        await expect(check(demo, 'eat-fruit')).toBeChecked();
+        await expect(check(demo, 'read-book')).not.toBeChecked();
+      }
+      for (const [locale, key] of [
+        ['en', 'en'],
+        ['pt-BR', 'pt'],
+      ] as const) {
+        await chooseLanguage(page, locale);
+        for (const example of landingExamples) {
+          const idea = page.locator(`[data-idea="${example.id}"]`);
+          const [action, goal, frequency] = example[key];
+          await expect(idea.locator('strong')).toHaveText(action);
+          await expect(idea.locator('.goal')).toHaveText(goal);
+          await expect(idea.locator('.frequency')).toHaveText(frequency);
+          await select(example.id);
+          for (const demo of ['#hero-demo', '#tour-today']) {
+            const row = page.locator(
+              `${demo} [data-pillar="${example.pillar}"] [data-habit="${example.id}"]`,
+            );
+            await expect(row.locator('.habit-name')).toHaveText(action);
+            await expect(row.locator('.habit-detail')).toHaveText(`${goal} · ${frequency}`);
+            await expect(row.getByRole('checkbox')).toHaveAccessibleName(
+              `${locale === 'en' ? 'Complete' : 'Concluir'}: ${action} — ${goal}`,
+            );
+          }
+        }
+      }
+      await chooseLanguage(page, 'en');
+      await select('floss');
+      await check('#tour-today', 'floss').check();
+      await check('#hero-demo', 'read-book').check();
+      await totals(3, 'en');
+      await select('exercise'); // Floss is hidden, not forgotten. Body has two rows.
+      await totals(2, 'en');
+      for (const demo of ['#hero-demo', '#tour-today']) {
+        await expect(page.locator(`${demo} [data-pillar="body"] .group-count`)).toHaveText(
+          '0/2 completed',
+        );
+        await expect(page.locator(`${demo} [data-pillar="mind"] .group-count`)).toHaveText(
+          '1/1 completed',
+        );
+        await expect(page.locator(`${demo} [data-pillar="nutrition"] .group-count`)).toHaveText(
+          '1/1 completed',
+        );
+        await expect(check(demo, 'floss')).toHaveCount(0);
+      }
+      await check('#hero-demo', 'exercise').check();
+      await totals(3, 'en');
+      await chooseLanguage(page, 'pt-BR');
+      await expect(page.getByRole('button', { name: 'Português', exact: true })).toBeFocused();
+      await expect(page.locator('[data-idea="exercise"]')).toHaveAttribute('aria-pressed', 'true');
+      await totals(3, 'pt-BR');
+      for (const demo of ['#hero-demo', '#tour-today']) {
+        await expect(check(demo, 'exercise')).toBeChecked();
+        await expect(page.locator(`${demo} [data-pillar="body"] .group-count`)).toHaveText(
+          '1/2 concluídos',
+        );
+      }
+      await check('#tour-today', 'exercise').uncheck();
+      await totals(2, 'pt-BR');
+      await select('meditate');
+      await totals(2, 'pt-BR');
+      for (const demo of ['#hero-demo', '#tour-today']) {
+        await expect(page.locator(`${demo} [data-pillar="mind"] .group-count`)).toHaveText(
+          '1/2 concluídos',
+        );
+      }
+      await select('floss');
+      await totals(3, 'pt-BR');
+      for (const demo of ['#hero-demo', '#tour-today'])
+        await expect(check(demo, 'floss')).toBeChecked();
+      await check('#tour-today', 'eat-fruit').uncheck();
+      await select('exercise');
+      await totals(1, 'pt-BR');
+      await expect(check('#hero-demo', 'exercise')).not.toBeChecked();
+      await chooseLanguage(page, 'en');
+      await totals(1, 'en');
+      for (const id of ['exercise', 'read-book', 'walk', 'eat-fruit'])
+        await check('#hero-demo', id).check();
+      await totals(4, 'en');
+      for (const demo of ['#hero-demo', '#tour-today'])
+        await expect(page.locator(`${demo} [role="status"]`)).toHaveText(
+          'Good job! All habits completed today.',
+        );
+      await check('#tour-today', 'exercise').uncheck();
+      await totals(3, 'en');
+      for (const demo of ['#hero-demo', '#tour-today'])
+        await expect(page.locator(`${demo} [role="status"]`)).toBeEmpty();
+    });
+  }
+}
 
 test('English first visit ignores browser language; explicit Portuguese selection survives reload', async ({
   page,

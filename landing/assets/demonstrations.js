@@ -1,5 +1,8 @@
 // Deliberately standalone: no imports from the app, database, or PWA modules.
-const pillars = ['mind', 'body', 'nutrition', 'hygiene', 'body', 'body', 'mind', 'mind', 'body', 'mind', 'mind', 'mind'];
+import { habitCatalog, defaultDemoIds } from './habit-catalog.js';
+
+const examplesById = new Map(habitCatalog.map(example => [example.id, example]));
+const visibleDemoHabits = 4;
 const colors = { mind: '#574776', body: '#8a3e4b', nutrition: '#77502f', hygiene: '#245a78' };
 const shapes = {
   mind: 'M12 5C10 2 5 3 5 7C1 8 2 13 5 14C3 19 8 22 12 19M12 5C14 2 19 3 19 7C23 8 22 13 19 14C21 19 16 22 12 19M12 5V19M5 7L8 9L7 12M19 7L16 9L17 12M5 14L9 15M19 14L15 15',
@@ -21,13 +24,13 @@ const icon = kind => svg([shapes[kind]].flat().map(d => `<path d="${d}"/>`).join
 const put = (root, selector, value) => { root.querySelector(selector).textContent = value; };
 
 export function createDemonstrations(getCopy, onChange) {
-  let selected = 0;
-  const completed = new Set([2]);
+  let selected = 'read-book';
+  const completed = new Set(['eat-fruit']);
   let feedback = false;
   let expiry;
   const demos = [document.querySelector('#hero-demo'), document.querySelector('#tour-today')];
   const strip = document.querySelector('#journey-strip');
-  const ideas = [];
+  const ideas = new Map();
   let ids;
 
   document.querySelectorAll('.pillar-summaries [data-pillar]').forEach(item => {
@@ -36,11 +39,12 @@ export function createDemonstrations(getCopy, onChange) {
     item.querySelector('.pillar-symbol').innerHTML = icon(kind);
   });
 
-  for (let id = 0; id < 12; id++) {
+  for (const { id, pillar, placement } of habitCatalog) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'idea';
-    button.innerHTML = `<span class="idea-icon">${icon(pillars[id])}</span><span><strong></strong><span class="goal"></span><span class="frequency"></span></span>`;
+    button.dataset.idea = id;
+    button.innerHTML = `<span class="idea-icon">${icon(pillar)}</span><span><strong></strong><span class="goal"></span><span class="frequency"></span></span>`;
     button.addEventListener('click', () => {
       selected = id;
       feedback = false;
@@ -48,30 +52,30 @@ export function createDemonstrations(getCopy, onChange) {
       buildRows();
       update();
     });
-    document.querySelector(id < 4 ? '#initial-ideas' : '#additional-ideas').append(button);
-    ideas.push(button);
+    document.querySelector(`#${placement}-ideas`).append(button);
+    ideas.set(id, button);
   }
 
   demos.forEach((demo, index) => {
     const titleTag = index === 0 ? 'h3' : 'h4';
     demo.innerHTML = `<div class="demo-header"><div><${titleTag} class="demo-title"></${titleTag}><p class="demo-date"></p></div><span class="xp-badge">${svg(sparkles)}<strong></strong> XP</span></div>
-      <p class="demo-intro"></p><div class="completion-summary"><span></span><strong></strong></div><progress max="4" value="1"></progress>
+      <p class="demo-intro"></p><div class="completion-summary"><span></span><strong></strong></div><progress max="${visibleDemoHabits}" value="1"></progress>
       <div class="demo-groups"></div><p class="demo-feedback" role="status" aria-live="polite" aria-atomic="true"></p>`;
   });
   strip.innerHTML = '<div class="strip-top"><strong></strong><span></span></div><progress max="100" value="60"></progress><div class="strip-bottom"><span></span><span></span></div>';
 
   function buildRows() {
-    ids = [selected, ...[0, 1, 2, 3].filter(id => id !== selected)].slice(0, 4);
+    ids = [selected, ...defaultDemoIds.filter(id => id !== selected)].slice(0, visibleDemoHabits);
     demos.forEach((demo, demoIndex) => {
       const groups = demo.querySelector('.demo-groups');
       groups.replaceChildren();
-      [...new Set(ids.map(id => pillars[id]))].forEach(kind => {
+      [...new Set(ids.map(id => examplesById.get(id).pillar))].forEach(kind => {
         const group = document.createElement('div');
         group.className = 'demo-group';
         group.style.setProperty('--pillar', colors[kind]);
         group.dataset.pillar = kind;
         group.innerHTML = `<div class="group-heading"><span class="group-title"><span class="pillar-icon">${icon(kind)}</span><strong></strong></span><span class="group-count"></span></div>`;
-        ids.filter(id => pillars[id] === kind).forEach(id => {
+        ids.filter(id => examplesById.get(id).pillar === kind).forEach(id => {
           const row = document.createElement('div');
           row.className = 'habit-row';
           row.dataset.habit = id;
@@ -110,18 +114,19 @@ export function createDemonstrations(getCopy, onChange) {
       demo.querySelector('.xp-badge').setAttribute('aria-label', `${t.total}: ${xp}`);
       put(demo, '.demo-intro', t.demoIntro);
       put(demo, '.completion-summary span', t.daily);
-      put(demo, '.completion-summary strong', `${count}/4 ${t.completed}`);
+      put(demo, '.completion-summary strong', `${count}/${ids.length} ${t.completed}`);
       const progress = demo.querySelector('progress');
+      progress.max = ids.length;
       progress.value = count;
       progress.setAttribute('aria-label', t.daily);
       demo.querySelectorAll('.demo-group').forEach(group => {
         const kind = group.dataset.pillar;
-        const groupIds = ids.filter(id => pillars[id] === kind);
+        const groupIds = ids.filter(id => examplesById.get(id).pillar === kind);
         put(group, '.group-heading strong', t[kind]);
         put(group, '.group-count', `${groupIds.filter(id => completed.has(id)).length}/${groupIds.length} ${t.completed}`);
       });
       demo.querySelectorAll('.habit-row').forEach(row => {
-        const id = Number(row.dataset.habit);
+        const id = row.dataset.habit;
         const [action, goal, frequency] = t.ideas[id];
         put(row, '.habit-name', action);
         put(row, '.habit-detail', `${goal} · ${frequency}`);
@@ -130,7 +135,7 @@ export function createDemonstrations(getCopy, onChange) {
         checkbox.checked = completed.has(id);
         checkbox.setAttribute('aria-label', `${t.check}: ${action} — ${goal}`);
       });
-      put(demo, '.demo-feedback', count === 4 ? t.allDone : feedback ? '+10 XP' : '');
+      put(demo, '.demo-feedback', count === ids.length ? t.allDone : feedback ? '+10 XP' : '');
     });
     put(strip, '.strip-top strong', `${t.journey} · ${t.level} 1`);
     put(strip, '.strip-top span', `${xp} / 100 XP`);

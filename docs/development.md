@@ -516,8 +516,10 @@ directory before ordinary regression runs, which need no baseline.
 
 `landing/index.html` and `landing/assets/field-notes.css` own the editorial page.
 The small native ES modules in the same assets directory are copied unchanged by
-the existing assembly: `translations.js` holds paired EN/pt-BR copy and the twelve
-ideas; `language.js` shares the landing-only preference, labels and metadata;
+the existing assembly: `habit-catalog.js` owns the twelve stable example IDs,
+explicit pillars, initial/additional placement and ID-based demonstration defaults;
+`translations.js` holds paired EN/pt-BR copy with example text keyed by those IDs;
+`language.js` shares the landing-only preference, labels and metadata;
 `landing.js` initializes demonstrations; `licenses.js` loads only canonical legal texts;
 `demonstrations.js` owns the in-memory checklist/XP; `tour.js` owns tour selection,
 calendar details and the bounded level example. No extra framework, dependency,
@@ -560,6 +562,21 @@ The focused browser regression compares rendered geometry with those sources.
 Preserve the existing ISC notice for Lucide Biceps/Sparkles. Completed habit rows
 stay neutral with normal text; only the native checkbox indicates completion.
 
+Catalog order controls presentation only. Selection, completions, DOM references,
+localized example text and pillar grouping use stable IDs, never matching array
+positions. Four demonstration habits remain an explicit product choice: the
+selected example followed by the named defaults, without duplicates. The initial
+selection is `read-book`, and `eat-fruit` starts completed. Catalog state stays in
+memory and never touches the diary. `tests/landing/habit-catalog.test.ts` pins all
+EN/PT wording, frequencies and assignments against an independent fixture; the
+landing browser suite also reorders catalog and translation keys independently
+using test-only module responses, then exercises the unchanged renderer.
+
+The ordinary formatting, ESLint and TypeScript checks do not validate native
+landing JavaScript. Catalog unit tests, focused browser tests and publication
+capture exercise these modules; review their source and use containerized
+`node --check` for syntax validation as well.
+
 Run through the established wrapper, serially with other project checks:
 
 ```sh
@@ -588,7 +605,7 @@ stability checks. Use the same `SITE_PREFIX` across each alternate-prefix run;
 restore default development/runtime configuration afterward.
 
 The opt-in screenshot suite `e2e/publication-captures.spec.ts` includes a landing
-check permitting exactly six module URLs total: the entry module and five imported
+check permitting exactly seven module URLs total: the entry module and six imported
 modules, with byte-identical HTML, local assets, no manifest and zero
 diary/channel/worker registration checks. Its source-preview server supplies
 JavaScript MIME types.

@@ -449,6 +449,19 @@ replacement, with validation repeated inside the transaction.
   Subordinate management/history screens have contextual Back controls; the
   Settings main page has no Back control or brand/green banner.
 
+### Landing illustrations
+
+`landing/assets/habit-catalog.js` owns stable example IDs, explicit pillar and
+initial/additional placement, presentation order and named demonstration defaults.
+`translations.js` keys each locale's illustrative action/goal/frequency tuple by
+the same ID. `demonstrations.js` keeps selection and completion IDs in memory,
+using them for DOM references and pillar groups in both synchronized previews.
+Reordering catalog entries or translation keys must not change those associations.
+The four-visible-habit limit is deliberate: selected example first, then named
+defaults without duplication. Initial selection is `read-book`; `eat-fruit` starts
+completed. These native modules remain independent of React, domain, diary and
+PWA modules; only the separate landing language preference persists.
+
 ### Headings, layout and focus
 
 - `src/app/page-heading.css` owns primary title/intro typography and spacing for

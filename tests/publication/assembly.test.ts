@@ -206,7 +206,10 @@ test('landing-only rebuild keeps every app hash and worker version stable, even 
       resolve(f.landingDir, 'index.html'),
       '<!doctype html><h1>Changed landing only</h1><a href="app/">Open the app</a>',
     );
+    const catalog = await readFile('landing/assets/habit-catalog.js', 'utf8');
+    await writeFile(resolve(f.landingDir, 'assets/habit-catalog.js'), catalog);
     const after = await buildSite({ ...f, site });
+    expect(await readFile(resolve(f.output, 'assets/habit-catalog.js'), 'utf8')).toBe(catalog);
     expect(after.appBase).toBe('/team/field-notes/app/');
     expect(after.appHashes).toEqual(before.appHashes);
     expect(after.version).toBe(before.version);
