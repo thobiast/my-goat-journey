@@ -9,6 +9,7 @@ import {
 import { newIdentity } from './identity';
 import { DatasetError } from './errors';
 import { requireActivePillar } from './pillars';
+import { normalizeGoalInput } from './goalInput';
 import { civilDate, localDate, parseLocalDate } from './calendar';
 import { updateCompletion } from './completion';
 import type { Dataset, GoalInput, Habit, LocalDate } from './types';
@@ -28,17 +29,6 @@ function tomorrow(today: LocalDate): LocalDate {
   const date = parseLocalDate(today);
   date.setUTCDate(date.getUTCDate() + 1);
   return civilDate(date);
-}
-
-function normalizeInput(data: Dataset, input: GoalInput): GoalInput {
-  if (!input.goal.trim()) throw new Error('Invalid goal or pillar');
-  requireActivePillar(data, input.pillarId);
-  if (
-    !input.weekdays.length ||
-    input.weekdays.some((day) => !Number.isInteger(day) || day < 0 || day > 6)
-  )
-    throw new Error('Select at least one valid weekday');
-  return { ...input, weekdays: [...new Set(input.weekdays)].sort() };
 }
 
 function editDefinition(habit: Habit, input: GoalInput, today: LocalDate): void {
@@ -123,7 +113,7 @@ export function previewHabitEdit(
   const habit = structuredClone(habitIn(data, habitId));
   if (habitState(habit, today).state === 'archived')
     throw new Error('Archived habit cannot be edited');
-  const normalized = normalizeInput(data, input);
+  const normalized = normalizeGoalInput(data, input);
   reconcilePendingMove(habit, today);
   const item = agenda(data, today).find((i) => i.habit.id === habitId);
   const sourcePillarId = item?.pillarId ?? membershipAt(habit, today)!.pillarId;
@@ -215,7 +205,7 @@ function applyHabitEdit(data: Dataset, habitId: string, input: GoalInput, now: D
   const habit = habitIn(data, habitId);
   if (habitState(habit, today).state === 'archived')
     throw new Error('Archived habit cannot be edited');
-  const normalized = normalizeInput(data, input);
+  const normalized = normalizeGoalInput(data, input);
   reconcileHabit(habit, today);
   const previousIntent = habit.pendingMove;
   const previousDue = pendingMoveDate(habit);

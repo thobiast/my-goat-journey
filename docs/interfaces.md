@@ -97,7 +97,10 @@ injected-failure settings.
   date, not the last successful date. Older rows are read-only.
 - `src/domain/completion.ts` exports `updateCompletion`; it updates the same
   habit/date record and preserves dated snapshots and credited source locks
-  through uncheck/recheck.
+  through uncheck/recheck. First credit of a stored conditional occurrence also
+  dates its membership and clears a matching pending move and its prospective
+  membership. Undo retains membership history; Repository commits these effects
+  atomically.
 
 ### Edits, moves, archival and reactivation
 
@@ -105,6 +108,13 @@ injected-failure settings.
 UI counter changes. `habitState` returns `active`, `archived` or `awaiting`, with
 optional `resumesOn`. `previewHabitEdit` supplies definition `effectiveFrom` and
 separate move date, mode, source and target.
+
+`src/domain/goalInput.ts` owns `normalizeGoalInput`, shared by creation, edit
+preview and committed edits. It validates nonblank goal text, an active destination
+and at least one integer weekday in 0–6, in that order. It preserves literal goal
+text and returns a fresh, sorted, deduplicated weekday array without changing input
+or dataset. Command-specific date, entity and lifecycle guards remain in their
+respective commands; drafts, backup validation and UI form checks are separate.
 
 - Goal/weekday edits begin on the next local date. Creation-day first-required
   feedback resolves the effective edited schedule while preserving today's

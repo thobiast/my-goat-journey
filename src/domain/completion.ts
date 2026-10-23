@@ -3,7 +3,11 @@ import { localDate, parseLocalDate } from './calendar';
 import { editableOccurrences } from './history';
 import type { Dataset, LocalDate } from './types';
 
-/** Mutates only the eligible dated fact. Repository supplies the committed transaction. */
+/**
+ * Updates the eligible dated fact. First credit of a stored conditional occurrence also
+ * dates its membership and clears a matching pending move and its prospective membership.
+ * Undo retains membership history. Repository commits these effects atomically.
+ */
 export function updateCompletion(
   data: Dataset,
   habitId: string,
