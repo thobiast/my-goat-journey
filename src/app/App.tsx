@@ -48,8 +48,16 @@ import { beforeCreation, displayDefinition } from '../features/habits/habitPrese
 import { PillarHistory } from '../features/progress/PillarHistory';
 import { HabitDetail } from '../features/progress/HabitDetail';
 import { ProgressDayPage } from '../features/progress/ProgressDayPage';
-import { fullDate } from '../features/progress/ConsistencyCard';
 import type { Route } from './routes';
+import {
+  backDestination,
+  backLabel,
+  dedicatedReview,
+  habitRoutePresentation,
+  primaryDestination,
+  routeHeader,
+  routeHeading,
+} from './routePolicy';
 import './styles.css';
 import { DiscardDialog } from './DiscardDialog';
 import './page-heading.css';
@@ -317,7 +325,14 @@ export function App() {
     return settled;
   }
 
-  function navigate(next: Route, force = false, freshPillars = false, restore?: ReturnOrigin) {
+  function navigate(
+    next: Route,
+    {
+      force = false,
+      freshPillars = false,
+      restore,
+    }: { force?: boolean; freshPillars?: boolean; restore?: ReturnOrigin } = {},
+  ) {
     if (transitionLocked.current || (departurePending.current && !force)) return;
     if (dirty && !force) {
       departurePending.current = true;
@@ -482,7 +497,11 @@ export function App() {
     }
   }
 
-  async function reloadCurrent(peer = false, review = false, lifecycleRefresh = false) {
+  async function reloadCurrent({
+    peer = false,
+    review = false,
+    lifecycleRefresh = false,
+  }: { peer?: boolean; review?: boolean; lifecycleRefresh?: boolean } = {}) {
     if (transitionLocked.current) return;
     ++operationActive.current;
     if (lifecycleRefresh) ++lifecycleActive.current;
@@ -588,7 +607,7 @@ export function App() {
       if (transitionLocked.current) return;
       ++epoch.current;
       invalidateRetry();
-      void reloadCurrent(true);
+      void reloadCurrent({ peer: true });
     };
     return () => {
       notifications.close();
@@ -608,7 +627,7 @@ export function App() {
       const boundary = new Date(now);
       boundary.setHours(24, 0, 0, 0);
       timer = setTimeout(refresh, boundary.getTime() - now.getTime());
-      if (committed.current) void reloadCurrent(false, false, true);
+      if (committed.current) void reloadCurrent({ lifecycleRefresh: true });
     };
 
     refresh();
@@ -694,10 +713,10 @@ export function App() {
       focusPageHeading(true);
   }, [formEpoch, route.screen, data?.onboardingComplete, focusPageHeading]);
   const currentHabit = data?.habits.find((h) => h.id === route.habitId);
-  const readOnlyEditor =
-    route.screen === 'editHabit' && !!currentHabit && beforeCreation(currentHabit, today);
+  const { readOnlyEditor, detailReadOnly } = habitRoutePresentation(route, currentHabit, today);
   useEffect(() => {
-    if (readOnlyEditor) navigate({ screen: 'habitDetail', habitId: route.habitId }, true);
+    if (readOnlyEditor && route.screen === 'editHabit')
+      navigate({ screen: 'habitDetail', habitId: route.habitId }, { force: true });
     // Keep the existing editor guard triggers; navigate is recreated every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [readOnlyEditor, route.habitId]);
@@ -705,14 +724,14 @@ export function App() {
     if (route.screen === 'habitAction' && currentHabit && beforeCreation(currentHabit, today)) {
       detailReturn.current = returnRoute.current;
       origin.current = managementOrigin.current;
-      navigate({ screen: 'habitDetail', habitId: currentHabit.id }, true);
+      navigate({ screen: 'habitDetail', habitId: currentHabit.id }, { force: true });
     }
     // Keep the existing lifecycle guard triggers, not navigate's render identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.screen, currentHabit, today]);
   useEffect(() => {
     if (route.screen === 'progressDay' && route.date >= today)
-      navigate({ screen: 'progress' }, true);
+      navigate({ screen: 'progress' }, { force: true });
     // Only date/route changes drive this guard; callback stabilization is separate work.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [today, route.screen, route.date]);
@@ -773,7 +792,7 @@ export function App() {
             </button>
           ) : (
             error === 'staleError' && (
-              <button disabled={busy} onClick={() => void reloadCurrent(false, true)}>
+              <button disabled={busy} onClick={() => void reloadCurrent({ review: true })}>
                 {copy.reload}
               </button>
             )
@@ -891,7 +910,7 @@ export function App() {
               () => repository.finalize(localDate(deviceClock.now()), committed.current!.revision),
               () => {
                 editingReview.current = false;
-                navigate({ screen: 'today' }, true);
+                navigate({ screen: 'today' }, { force: true });
               },
             )
           }
@@ -901,61 +920,22 @@ export function App() {
   const items = agenda(data, today);
   const summary = summarize(items);
   const pillar = data.pillars.find((p) => p.id === route.pillarId);
-  const title =
-    route.screen === 'progressDay'
-      ? fullDate(route.date, data.settings.language)
-      : route.screen === 'editHabit' && !readOnlyEditor
-        ? copy.editHabit
-        : (route.screen === 'habitDetail' || readOnlyEditor) && currentHabit
-          ? copy.reviewCompletions
-          : route.screen === 'progress'
-            ? copy.progress
-            : route.screen === 'settings'
-              ? copy.settings
-              : route.screen === 'today'
-                ? copy.today
-                : route.screen === 'journey'
-                  ? copy.journeyTitle
-                  : route.screen === 'archived'
-                    ? copy.archivedHabits
-                    : route.screen === 'habitAction'
-                      ? copy.manageHabit
-                      : route.screen === 'pillars'
-                        ? copy.pillars
-                        : route.screen === 'habit'
-                          ? copy.addHabit
-                          : route.screen === 'removePillar'
-                            ? copy.removePillarQuestion
-                            : route.screen === 'pillar'
-                              ? pillar
-                                ? copy.renamePillar
-                                : copy.newPillar
-                              : displayPillarName(pillar, copy);
-  const originContext =
-    route.screen === 'pillarHistory'
-      ? pillarHistoryReturn.current
-      : ['habitDetail', 'editHabit'].includes(route.screen)
-        ? detailReturn.current
-        : route.screen === 'settings'
-          ? settingsReturn.current
-          : ['habit', 'habitAction', 'pillar', 'removePillar'].includes(route.screen)
-            ? returnRoute.current
-            : route;
-  const context =
-    originContext.screen === 'pillarHistory' ? pillarHistoryReturn.current : originContext;
-  const primary =
-    route.screen === 'settings'
-      ? 'settings'
-      : context.screen === 'today'
-        ? 'today'
-        : context.screen === 'journey'
-          ? 'journey'
-          : context.screen === 'progress' || context.screen === 'progressDay'
-            ? 'progress'
-            : 'pillars';
+  const { title, intro: pageIntro } = routeHeading(route, copy, {
+    language: data.settings.language,
+    pillar,
+    habitAvailable: !!currentHabit,
+    readOnlyEditor,
+  });
+  const routeReturns = () => ({
+    detail: detailReturn.current,
+    pillarHistory: pillarHistoryReturn.current,
+    settings: settingsReturn.current,
+    management: returnRoute.current,
+  });
+  const primary = primaryDestination(route, routeReturns());
 
   const openDestination = (destination: PrimaryDestination) =>
-    navigate({ screen: destination }, false, destination === 'pillars');
+    navigate({ screen: destination }, { freshPillars: destination === 'pillars' });
 
   const create = (pillarId: string) => {
     returnRoute.current = route;
@@ -973,7 +953,7 @@ export function App() {
   const finishManagement = (message?: string) => {
     origin.current = managementOrigin.current;
     restoreOrigin.current = true;
-    navigate(returnRoute.current, true);
+    navigate(returnRoute.current, { force: true });
     if (message) setStatus(message);
   };
 
@@ -983,31 +963,12 @@ export function App() {
     navigate({
       screen: 'habitDetail',
       habitId,
-      review:
-        ['pillars', 'archived'].includes(route.screen) ||
-        (route.screen === 'pillarHistory' && pillarHistoryReturn.current.screen === 'pillars'),
+      review: dedicatedReview(undefined, route, pillarHistoryReturn.current),
     });
   };
 
-  const backDestination = (): Route =>
-    route.screen === 'archived'
-      ? { screen: 'pillars' }
-      : route.screen === 'editHabit'
-        ? directEdit.current
-          ? detailReturn.current
-          : { screen: 'habitDetail', habitId: route.habitId }
-        : route.screen === 'pillarHistory'
-          ? pillarHistoryReturn.current
-          : route.screen === 'habitDetail'
-            ? detailReturn.current
-            : route.screen === 'progressDay'
-              ? { screen: 'progress' }
-              : route.screen === 'settings'
-                ? settingsReturn.current
-                : returnRoute.current;
-
   const back = () => {
-    const next = backDestination();
+    const next = backDestination(route, routeReturns(), directEdit.current);
     const restore =
       route.screen === 'pillarHistory'
         ? pillarOrigin.current
@@ -1021,58 +982,21 @@ export function App() {
               : route.screen === 'habitDetail'
                 ? origin.current
                 : undefined;
-    navigate(next, false, false, restore);
+    navigate(next, { restore });
   };
 
-  const dedicatedReview =
-    route.review ??
-    (['pillars', 'archived'].includes(detailReturn.current.screen) ||
-      (detailReturn.current.screen === 'pillarHistory' &&
-        pillarHistoryReturn.current.screen === 'pillars'));
-  const quietBack = [
-    'habit',
-    'editHabit',
-    'habitDetail',
-    'pillarHistory',
-    'archived',
-    'habitAction',
-    'pillar',
-    'removePillar',
-  ].includes(route.screen);
-  const primaryPage = ['today', 'pillars', 'journey', 'progress', 'settings'].includes(
-    route.screen,
+  const isDedicatedReview = dedicatedReview(
+    route.review,
+    detailReturn.current,
+    pillarHistoryReturn.current,
   );
-  const pageIntro =
-    route.screen === 'pillars'
-      ? copy.pillarsIntro
-      : route.screen === 'journey'
-        ? copy.journeyMotto
-        : route.screen === 'progress'
-          ? copy.progressIntro
-          : route.screen === 'settings'
-            ? copy.pageHeadingSettingsIntro
-            : undefined;
-  const backTarget = backDestination();
-  const backLabel =
-    backTarget.screen === 'archived'
-      ? copy.archivedHabits
-      : backTarget.screen === 'pillarHistory'
-        ? copy.viewPillarStreaks
-        : backTarget.screen === 'habitDetail'
-          ? copy.reviewCompletions
-          : backTarget.screen === 'habitAction'
-            ? copy.manageHabit
-            : backTarget.screen === 'progressDay'
-              ? copy.history
-              : backTarget.screen === 'progress'
-                ? copy.progress
-                : backTarget.screen === 'today'
-                  ? copy.today
-                  : copy.pillars;
+  const { primaryPage, quietBack, showBrand, className } = routeHeader(route);
+  const backTarget = backDestination(route, routeReturns(), directEdit.current);
+  const visibleBackLabel = backLabel(backTarget, copy);
   const habitDetail = currentHabit && (
     <HabitDetail
-      readOnly={route.screen === 'editHabit'}
-      management={!dedicatedReview}
+      readOnly={detailReadOnly}
+      management={!isDedicatedReview}
       key={`${currentHabit.id}-${formEpoch}`}
       data={data}
       habit={currentHabit}
@@ -1134,31 +1058,7 @@ export function App() {
         )
           editingFocus.current = target;
       }}
-      className={
-        route.screen === 'today'
-          ? 'today-page'
-          : route.screen === 'journey'
-            ? 'journey-page'
-            : route.screen === 'progress'
-              ? 'progress-page'
-              : route.screen === 'settings'
-                ? 'settings-page'
-                : route.screen === 'progressDay'
-                  ? 'progress-day-page'
-                  : [
-                        'pillars',
-                        'archived',
-                        'habitAction',
-                        'pillar',
-                        'removePillar',
-                        'habit',
-                        'editHabit',
-                        'habitDetail',
-                        'pillarHistory',
-                      ].includes(route.screen)
-                    ? 'pillars-management-page'
-                    : undefined
-      }
+      className={className}
     >
       {updateNotice}
       {route.screen === 'today' ? (
@@ -1174,25 +1074,10 @@ export function App() {
         <header className={primaryPage ? 'main-page-header' : undefined}>
           {quietBack && (
             <button className="quiet-back" disabled={busy} onClick={back}>
-              ← {backLabel}
+              ← {visibleBackLabel}
             </button>
           )}
-          {!quietBack &&
-            ![
-              'journey',
-              'progress',
-              'progressDay',
-              'pillars',
-              'settings',
-              'archived',
-              'habitAction',
-              'pillar',
-              'removePillar',
-            ].includes(route.screen) &&
-            !(route.screen === 'editHabit' && directEdit.current) &&
-            !(route.screen === 'habit' && returnRoute.current.screen === 'pillars') && (
-              <p className="brand">My GOAT Journey</p>
-            )}
+          {showBrand && <p className="brand">My GOAT Journey</p>}
           <h1 className={primaryPage ? 'page-title' : undefined} ref={heading} tabIndex={-1}>
             {title}
           </h1>
@@ -1230,7 +1115,12 @@ export function App() {
               void updateController.current?.accept().then((accepted) => {
                 if (!accepted) discardForUpdate.current = false;
               });
-            } else navigate(departure.route, true, departure.freshPillars, departure.restore);
+            } else
+              navigate(departure.route, {
+                force: true,
+                freshPillars: departure.freshPillars,
+                restore: departure.restore,
+              });
           }}
         />
       )}
@@ -1334,8 +1224,9 @@ export function App() {
                     reveal: destination !== currentHabit.memberships.at(-1)!.pillarId,
                   };
                   restoreOrigin.current = true;
-                  navigate(detailReturn.current, true);
-                } else navigate({ screen: 'habitDetail', habitId: currentHabit.id }, true);
+                  navigate(detailReturn.current, { force: true });
+                } else
+                  navigate({ screen: 'habitDetail', habitId: currentHabit.id }, { force: true });
               },
             )
           }
@@ -1480,7 +1371,7 @@ export function App() {
                   };
                   restoreOrigin.current = true;
                 }
-                navigate(returnRoute.current, true);
+                navigate(returnRoute.current, { force: true });
               },
             );
           }}
@@ -1512,7 +1403,7 @@ export function App() {
                     reveal: true,
                   };
                   restoreOrigin.current = true;
-                  navigate(returnRoute.current, true);
+                  navigate(returnRoute.current, { force: true });
                   setStatus(copy.pillarSaved);
                 } else finishManagement(copy.pillarSaved);
               },
@@ -1572,7 +1463,7 @@ export function App() {
               (state) => {
                 acceptSnapshot(state, { kind: 'confirmed-replacement' });
                 setProgressView(initialProgressViewFor(state.settings));
-                navigate({ screen: 'today' }, true);
+                navigate({ screen: 'today' }, { force: true });
                 setStatus((state.settings.language === 'pt' ? pt : en).dataDeleted);
               },
             )

@@ -450,6 +450,18 @@ replacement, with validation repeated inside the transaction.
   habit-review `review` remain optional presentation intents. Typed identities do
   not guarantee an entity survives replacement, so runtime entity/date guards and
   obsolete-destination recovery remain necessary.
+- `src/app/routePolicy.ts` owns pure heading/intro, header, active-primary,
+  contextual Back destination/label and habit review/editor presentation decisions.
+  It receives read-only route/entity values, retains the existing single extra
+  Pillar-history context lookup and preserves missing-entity/label fallbacks.
+  App still captures/repairs return refs and owns navigation, dirty departures,
+  expansion, restoration effects and success feedback; the policy does not navigate.
+- App's internal `navigate(next, { force?, freshPillars?, restore? })` and
+  `reloadCurrent({ peer?, review?, lifecycleRefresh? })` use independent named
+  intentions with unchanged false defaults. `force` bypasses only dirty/departure
+  checks, never the transition lock; accepted departures retain captured restoration
+  and fresh-entry values. Refresh classification, lifecycle tags and counters stay
+  with App's existing queue and Repository fallback.
 - The shared site mounts the landing at resolved `prefix` and the app at derived
   `appBase`. Relative manifest and worker scope resolve under the app only.
 - The landing never opens the diary or BroadcastChannel. Same-origin paths are
