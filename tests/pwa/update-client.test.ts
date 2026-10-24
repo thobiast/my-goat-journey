@@ -584,7 +584,9 @@ it('accepts once only after preparation and reloads only for that worker, never 
         release = resolve;
       }),
   );
-  const { sw, client, reload } = fixture({ prepare });
+  const released = vi.fn();
+  const { sw, client, reload } = fixture({ prepare, released });
+  reload.mockImplementation(() => sw.dispatchEvent(new Event('controllerchange')));
   await client.start();
   const waiting = sw.registration.waiting!;
   const acceptance = client.accept();
@@ -603,6 +605,11 @@ it('accepts once only after preparation and reloads only for that worker, never 
   sw.dispatchEvent(new Event('controllerchange'));
   sw.dispatchEvent(new Event('controllerchange'));
   expect(reload).toHaveBeenCalledTimes(1);
+  expect(released).not.toHaveBeenCalled();
+  expect(client.snapshot.applying).toBe(true);
+  const reply = waiting.postMessage.mock.calls[0][1]![0];
+  expect(reply.close).toHaveBeenCalledTimes(1);
+  expect(reply.peer.close).toHaveBeenCalledTimes(1);
   client.dispose();
 });
 it('reloads an initially uncontrolled accepting tab exactly once when its accepted worker activates without claiming it', async () => {
@@ -829,68 +836,156 @@ it('manual activation failure is not misreported as the preceding failed update 
   client.dispose();
 });
 
-it("a superseded worker's delayed acknowledgement cannot release or authorize a newer acceptance", async () => {
-  const { sw, client, reload } = fixture();
-  await client.start();
-  const firstWorker = sw.registration.waiting!;
-  let firstReply!: Port;
-  let nextReply!: Port;
-  firstWorker.postMessage.mockImplementation((_message, ports) => {
-    firstReply = ports![0];
-  });
-  const first = client.accept();
-  await Promise.resolve();
-  firstWorker.state = 'redundant';
-  firstWorker.dispatchEvent(new Event('statechange'));
-  const next = new Worker();
-  next.postMessage.mockImplementation((_message, ports) => {
-    nextReply = ports![0];
-  });
-  sw.registration.waiting = next;
-  sw.registration.installing = next;
-  sw.registration.dispatchEvent(new Event('updatefound'));
-  const second = client.accept();
-  await Promise.resolve();
-  firstReply.postMessage({ accepted: true });
-  expect(await first).toBe(false);
-  expect(client.snapshot.applying).toBe(true);
-  sw.controller = next;
-  sw.registration.waiting = null;
-  sw.dispatchEvent(new Event('controllerchange'));
-  expect(reload).not.toHaveBeenCalled();
-  nextReply.postMessage({ accepted: true });
-  expect(await second).toBe(true);
-  expect(reload).toHaveBeenCalledTimes(1);
-  client.dispose();
-});
+it.each([true, false, 'timeout'] as const)(
+  "a superseded worker's delayed acknowledgement (%s) cannot release or authorize a newer acceptance",
+  async (oldReply) => {
+    vi.useFakeTimers();
+    const released = vi.fn();
+    const { sw, client, reload } = fixture({ released, timeoutMs: 50 });
+    let firstReply!: Port;
+    let nextReply!: Port;
+    let first: Promise<boolean> | undefined;
+    let second: Promise<boolean> | undefined;
+    try {
+      await client.start();
+      const firstWorker = sw.registration.waiting!;
+      firstWorker.postMessage.mockImplementation((_message, ports) => {
+        firstReply = ports![0];
+      });
+      first = client.accept();
+      await Promise.resolve();
+      expect(firstWorker.postMessage).toHaveBeenCalledExactlyOnceWith(
+        { type: 'ACTIVATE_WHEN_ALONE' },
+        [firstReply],
+      );
+      firstWorker.state = 'redundant';
+      firstWorker.dispatchEvent(new Event('statechange'));
+      expect(released).toHaveBeenCalledTimes(1);
+      expect(firstReply.close).not.toHaveBeenCalled();
+      expect(firstReply.peer.close).not.toHaveBeenCalled();
+      // Stagger the deadlines so only the obsolete acknowledgement expires.
+      await vi.advanceTimersByTimeAsync(20);
+      const next = new Worker();
+      next.postMessage.mockImplementation((_message, ports) => {
+        nextReply = ports![0];
+      });
+      sw.registration.waiting = next;
+      sw.registration.installing = next;
+      sw.registration.dispatchEvent(new Event('updatefound'));
+      second = client.accept();
+      await Promise.resolve();
+      expect(next.postMessage).toHaveBeenCalledExactlyOnceWith({ type: 'ACTIVATE_WHEN_ALONE' }, [
+        nextReply,
+      ]);
+      if (oldReply === 'timeout') await vi.advanceTimersByTimeAsync(30);
+      else firstReply.postMessage({ accepted: oldReply });
+      expect(await first).toBe(false);
+      expect(firstReply.close).toHaveBeenCalledTimes(1);
+      expect(firstReply.peer.close).toHaveBeenCalledTimes(1);
+      expect(nextReply.close).not.toHaveBeenCalled();
+      expect(nextReply.peer.close).not.toHaveBeenCalled();
+      expect(released).toHaveBeenCalledTimes(1);
+      expect(client.snapshot).toMatchObject({ applying: true, failed: false, checkStatus: 'idle' });
+      sw.controller = firstWorker;
+      sw.dispatchEvent(new Event('controllerchange'));
+      expect(reload).not.toHaveBeenCalled();
+      sw.controller = next;
+      sw.registration.waiting = null;
+      sw.dispatchEvent(new Event('controllerchange'));
+      expect(reload).not.toHaveBeenCalled();
+      nextReply.postMessage({ accepted: true });
+      expect(await second).toBe(true);
+      expect(nextReply.close).toHaveBeenCalledTimes(1);
+      expect(nextReply.peer.close).toHaveBeenCalledTimes(1);
+      expect(reload).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(51);
+      expect(released).toHaveBeenCalledTimes(1);
+      expect(reload).toHaveBeenCalledTimes(1);
+    } finally {
+      client.dispose();
+      firstReply?.postMessage({ accepted: false });
+      nextReply?.postMessage({ accepted: false });
+      await vi.runAllTimersAsync();
+      await Promise.all([first, second]);
+      vi.useRealTimers();
+    }
+  },
+);
 
-it('a silent acknowledgement timeout releases the lock once and ignores a late positive reply', async () => {
-  vi.useFakeTimers();
-  const released = vi.fn();
-  const { sw, client, reload } = fixture({ timeoutMs: 50, released });
-  try {
-    await client.start();
-    const worker = sw.registration.waiting!;
-    let reply!: Port;
-    worker.postMessage.mockImplementation((_message, ports) => {
-      reply = ports![0];
-    });
-    const accepted = client.accept();
-    await Promise.resolve();
-    await vi.advanceTimersByTimeAsync(51);
-    expect(await accepted).toBe(false);
-    expect(released).toHaveBeenCalledTimes(1);
-    reply.postMessage({ accepted: true });
-    sw.controller = worker;
-    sw.dispatchEvent(new Event('controllerchange'));
-    await Promise.resolve();
-    expect(reload).not.toHaveBeenCalled();
-    expect(client.snapshot.applying).toBe(false);
-  } finally {
-    client.dispose();
-    vi.useRealTimers();
-  }
-});
+it.each(['denial', 'dispatch error', 'timeout'] as const)(
+  'an explicit attempt after %s ignores old replies and requires its own acknowledgement',
+  async (failure) => {
+    vi.useFakeTimers();
+    const released = vi.fn();
+    const { sw, client, reload } = fixture({ timeoutMs: 50, released });
+    let oldReply!: Port;
+    let nextReply!: Port;
+    let first: Promise<boolean> | undefined;
+    let second: Promise<boolean> | undefined;
+    try {
+      await client.start();
+      // Acceptance must replace earlier failed-check feedback with activation feedback.
+      sw.registration.update.mockRejectedValue(new Error('network'));
+      await client.check(true);
+      expect(client.snapshot.checkStatus).toBe('failed');
+      const worker = sw.registration.waiting!;
+      worker.postMessage.mockImplementationOnce((_message, ports) => {
+        oldReply = ports![0];
+        if (failure === 'dispatch error') throw new Error('activation');
+        if (failure === 'denial') oldReply.postMessage({ accepted: false });
+      });
+      first = client.accept();
+      await Promise.resolve();
+      if (failure === 'timeout') await vi.advanceTimersByTimeAsync(50);
+      expect(await first).toBe(false);
+      expect(client.snapshot).toMatchObject({
+        applying: false,
+        failed: failure !== 'denial',
+        checkStatus: 'idle',
+        available: true,
+      });
+      expect(released).toHaveBeenCalledTimes(1);
+      expect(oldReply.close).toHaveBeenCalledTimes(1);
+      expect(oldReply.peer.close).toHaveBeenCalledTimes(1);
+      worker.postMessage.mockImplementationOnce((_message, ports) => {
+        nextReply = ports![0];
+      });
+      second = client.accept();
+      await Promise.resolve();
+      expect(worker.postMessage).toHaveBeenNthCalledWith(2, { type: 'ACTIVATE_WHEN_ALONE' }, [
+        nextReply,
+      ]);
+      oldReply.postMessage({ accepted: true });
+      oldReply.postMessage({ accepted: false });
+      // The old controller event and duplicate reply cannot authorize the pending attempt.
+      sw.controller = worker;
+      sw.dispatchEvent(new Event('controllerchange'));
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(client.snapshot).toMatchObject({ applying: true, failed: false, checkStatus: 'idle' });
+      expect(released).toHaveBeenCalledTimes(1);
+      expect(reload).not.toHaveBeenCalled();
+      expect(nextReply.close).not.toHaveBeenCalled();
+      expect(nextReply.peer.close).not.toHaveBeenCalled();
+      nextReply.postMessage({ accepted: true });
+      nextReply.postMessage({ accepted: false });
+      expect(await second).toBe(true);
+      expect(nextReply.close).toHaveBeenCalledTimes(1);
+      expect(nextReply.peer.close).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(51);
+      expect(reload).toHaveBeenCalledTimes(1);
+      expect(released).toHaveBeenCalledTimes(1);
+      expect(client.snapshot.applying).toBe(true);
+    } finally {
+      client.dispose();
+      oldReply?.postMessage({ accepted: false });
+      nextReply?.postMessage({ accepted: false });
+      await vi.runAllTimersAsync();
+      await Promise.all([first, second]);
+      vi.useRealTimers();
+    }
+  },
+);
 
 it('bounds a stalled activation, unlocks on failure, and never reloads for its later controller event', async () => {
   vi.useFakeTimers();
@@ -911,10 +1006,10 @@ it('bounds a stalled activation, unlocks on failure, and never reloads for its l
     vi.useRealTimers();
   }
 });
-it('disposal cancels pending preparation without activation and removes listeners', async () => {
+it('disposal invalidates pending preparation without cancelling its local lifetime', async () => {
   let release!: (value: boolean) => void;
   const released = vi.fn();
-  const { sw, client, reload } = fixture({
+  const { sw, client, reload, changed } = fixture({
     released,
     prepare: () =>
       new Promise<boolean>((resolve) => {
@@ -922,14 +1017,242 @@ it('disposal cancels pending preparation without activation and removes listener
       }),
   });
   await client.start();
-  const accepted = client.accept();
-  client.dispose();
-  release(true);
-  expect(await accepted).toBe(false);
-  expect(sw.registration.waiting!.postMessage).not.toHaveBeenCalled();
-  sw.controller = sw.registration.waiting;
-  sw.dispatchEvent(new Event('controllerchange'));
-  expect(reload).not.toHaveBeenCalled();
+  const worker = sw.registration.waiting!;
+  const removeContainer = vi.spyOn(sw, 'removeEventListener');
+  const removeRegistration = vi.spyOn(sw.registration, 'removeEventListener');
+  const removeWorker = vi.spyOn(worker, 'removeEventListener');
+  let settled = false;
+  const accepted = client.accept().then((value) => {
+    settled = true;
+    return value;
+  });
+  const snapshot = client.snapshot;
+  const publications = changed.mock.calls.length;
+  try {
+    client.dispose();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(client.snapshot).toBe(snapshot);
+    expect(snapshot.applying).toBe(true);
+    expect(removeContainer).toHaveBeenCalledExactlyOnceWith(
+      'controllerchange',
+      expect.any(Function),
+    );
+    expect(removeRegistration).toHaveBeenCalledExactlyOnceWith('updatefound', expect.any(Function));
+    expect(removeWorker).toHaveBeenCalledExactlyOnceWith('statechange', expect.any(Function));
+    release(true);
+    expect(await accepted).toBe(false);
+    expect(worker.postMessage).not.toHaveBeenCalled();
+    sw.controller = worker;
+    sw.dispatchEvent(new Event('controllerchange'));
+    sw.registration.dispatchEvent(new Event('updatefound'));
+    worker.dispatchEvent(new Event('statechange'));
+    expect(reload).not.toHaveBeenCalled();
+    expect(released).not.toHaveBeenCalled();
+    expect(changed).toHaveBeenCalledTimes(publications);
+    expect(client.snapshot).toBe(snapshot);
+  } finally {
+    client.dispose();
+    release(true);
+    await accepted;
+    vi.restoreAllMocks();
+  }
+});
+
+it.each(['positive reply', 'timeout'] as const)(
+  'disposal during acknowledgement retains local cleanup until %s',
+  async (completion) => {
+    vi.useFakeTimers();
+    const released = vi.fn();
+    const { sw, client, reload, changed } = fixture({ released, timeoutMs: 50 });
+    let reply!: Port;
+    let acceptance: Promise<boolean> | undefined;
+    try {
+      await client.start();
+      const worker = sw.registration.waiting!;
+      // Include a second watched worker to check complete subscription teardown.
+      const installing = new Worker();
+      installing.state = 'installing';
+      sw.registration.installing = installing;
+      sw.registration.dispatchEvent(new Event('updatefound'));
+      const removeContainer = vi.spyOn(sw, 'removeEventListener');
+      const removeRegistration = vi.spyOn(sw.registration, 'removeEventListener');
+      const removeWorker = vi.spyOn(worker, 'removeEventListener');
+      const removeInstalling = vi.spyOn(installing, 'removeEventListener');
+      worker.postMessage.mockImplementation((_message, ports) => {
+        reply = ports![0];
+      });
+      acceptance = client.accept();
+      await Promise.resolve();
+      expect(worker.postMessage).toHaveBeenCalledExactlyOnceWith({ type: 'ACTIVATE_WHEN_ALONE' }, [
+        reply,
+      ]);
+      const snapshot = client.snapshot;
+      const publications = changed.mock.calls.length;
+      client.dispose();
+      expect(snapshot.applying).toBe(true);
+      expect(client.snapshot).toBe(snapshot);
+      expect(reply.close).not.toHaveBeenCalled();
+      expect(reply.peer.close).not.toHaveBeenCalled();
+      expect(removeContainer).toHaveBeenCalledExactlyOnceWith(
+        'controllerchange',
+        expect.any(Function),
+      );
+      expect(removeRegistration).toHaveBeenCalledExactlyOnceWith(
+        'updatefound',
+        expect.any(Function),
+      );
+      expect(removeWorker).toHaveBeenCalledExactlyOnceWith('statechange', expect.any(Function));
+      expect(removeInstalling).toHaveBeenCalledExactlyOnceWith('statechange', expect.any(Function));
+      if (completion === 'positive reply') reply.postMessage({ accepted: true });
+      else await vi.advanceTimersByTimeAsync(50);
+      expect(await acceptance).toBe(false);
+      expect(reply.close).toHaveBeenCalledTimes(1);
+      expect(reply.peer.close).toHaveBeenCalledTimes(1);
+      sw.controller = worker;
+      worker.state = 'activated';
+      sw.dispatchEvent(new Event('controllerchange'));
+      sw.registration.dispatchEvent(new Event('updatefound'));
+      worker.dispatchEvent(new Event('statechange'));
+      installing.dispatchEvent(new Event('statechange'));
+      await vi.advanceTimersByTimeAsync(51);
+      expect(reload).not.toHaveBeenCalled();
+      expect(released).not.toHaveBeenCalled();
+      expect(changed).toHaveBeenCalledTimes(publications);
+      expect(client.snapshot).toBe(snapshot);
+    } finally {
+      client.dispose();
+      reply?.postMessage({ accepted: false });
+      await vi.runAllTimersAsync();
+      await acceptance;
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+    }
+  },
+);
+
+it('a candidate replaced during preparation is not messaged and remains available for explicit acceptance', async () => {
+  let finish!: (value: boolean) => void;
+  const prepare = vi
+    .fn(async () => true)
+    .mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finish = resolve;
+        }),
+    );
+  const released = vi.fn();
+  const { sw, client, reload } = fixture({ prepare, released });
+  let acceptance: Promise<boolean> | undefined;
+  try {
+    await client.start();
+    const oldWorker = sw.registration.waiting!;
+    acceptance = client.accept();
+    const next = new Worker();
+    sw.registration.waiting = next;
+    sw.registration.installing = next;
+    sw.registration.dispatchEvent(new Event('updatefound'));
+    next.dispatchEvent(new Event('statechange'));
+    finish(true);
+    expect(await acceptance).toBe(false);
+    expect(oldWorker.postMessage).not.toHaveBeenCalled();
+    expect(next.postMessage).not.toHaveBeenCalled();
+    expect(client.snapshot).toMatchObject({ applying: false, available: true, failed: false });
+    expect(released).toHaveBeenCalledTimes(1);
+    expect(reload).not.toHaveBeenCalled();
+    expect(await client.accept()).toBe(true);
+    expect(next.postMessage).toHaveBeenCalledExactlyOnceWith(
+      { type: 'ACTIVATE_WHEN_ALONE' },
+      expect.any(Array),
+    );
+    sw.controller = oldWorker;
+    sw.dispatchEvent(new Event('controllerchange'));
+    expect(reload).not.toHaveBeenCalled();
+    sw.controller = next;
+    sw.dispatchEvent(new Event('controllerchange'));
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(released).toHaveBeenCalledTimes(1);
+  } finally {
+    client.dispose();
+    finish?.(true);
+    await acceptance;
+  }
+});
+
+it('a one-shot reentrant release publishes failure before a nested attempt and stale completion cannot release it', async () => {
+  let finish!: (value: boolean) => void;
+  const prepare = vi
+    .fn(async () => true)
+    .mockImplementationOnce(async () => true)
+    .mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finish = resolve;
+        }),
+    );
+  let nested: Promise<boolean> | undefined;
+  const trace: string[] = [];
+  const released = vi.fn(() => {
+    trace.push(`release:${client.snapshot.applying}`);
+    if (released.mock.calls.length === 1) nested = client.accept();
+  });
+  const { sw, client, reload, changed } = fixture({ prepare, released });
+  let oldReply!: Port;
+  let nextReply!: Port;
+  let first: Promise<boolean> | undefined;
+  try {
+    await client.start();
+    changed.mockImplementation((snapshot) => trace.push(`publish:${snapshot.applying}`));
+    const oldWorker = sw.registration.waiting!;
+    oldWorker.postMessage.mockImplementation((_message, ports) => {
+      oldReply = ports![0];
+    });
+    first = client.accept();
+    await Promise.resolve();
+    const next = new Worker();
+    next.postMessage.mockImplementation((_message, ports) => {
+      nextReply = ports![0];
+    });
+    sw.registration.waiting = next;
+    sw.registration.installing = next;
+    sw.registration.dispatchEvent(new Event('updatefound'));
+    trace.length = 0;
+    oldWorker.state = 'redundant';
+    oldWorker.dispatchEvent(new Event('statechange'));
+    expect(trace.slice(0, 3)).toEqual(['publish:false', 'release:false', 'publish:true']);
+    expect(prepare).toHaveBeenCalledTimes(2);
+    expect(client.snapshot.applying).toBe(true);
+    expect(next.postMessage).not.toHaveBeenCalled();
+    oldReply.postMessage({ accepted: true });
+    expect(await first).toBe(false);
+    expect(oldReply.close).toHaveBeenCalledTimes(1);
+    expect(oldReply.peer.close).toHaveBeenCalledTimes(1);
+    expect(released).toHaveBeenCalledTimes(1);
+    expect(client.snapshot.applying).toBe(true);
+    finish(true);
+    await Promise.resolve();
+    expect(next.postMessage).toHaveBeenCalledExactlyOnceWith({ type: 'ACTIVATE_WHEN_ALONE' }, [
+      nextReply,
+    ]);
+    nextReply.postMessage({ accepted: true });
+    expect(await nested).toBe(true);
+    expect(nextReply.close).toHaveBeenCalledTimes(1);
+    expect(nextReply.peer.close).toHaveBeenCalledTimes(1);
+    sw.controller = oldWorker;
+    sw.dispatchEvent(new Event('controllerchange'));
+    expect(reload).not.toHaveBeenCalled();
+    sw.controller = next;
+    sw.dispatchEvent(new Event('controllerchange'));
+    sw.dispatchEvent(new Event('controllerchange'));
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(released).toHaveBeenCalledTimes(1);
+  } finally {
+    client.dispose();
+    finish?.(true);
+    oldReply?.postMessage({ accepted: false });
+    nextReply?.postMessage({ accepted: false });
+    await Promise.all([first, nested]);
+  }
 });
 
 it('a newly controlled initially uncontrolled document can locally accept its already activated controller without activating peers', async () => {

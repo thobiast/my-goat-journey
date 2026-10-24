@@ -98,12 +98,18 @@ export function createUpdateController(options: UpdateOptions) {
     publish({ available: !!worker });
   }
 
-  function failedAcceptance(failed = false) {
-    if (!snapshot.applying) return;
+  // Revoke attempt authority before publication or teardown. Pending preparation
+  // and acknowledgement work retain their own lifetimes and cleanup.
+  function invalidateAttempt(): void {
     ++acceptanceId;
     accepted = undefined;
     acknowledged = false;
     clearTimeout(activationTimer);
+  }
+
+  function failedAcceptance(failed = false) {
+    if (!snapshot.applying) return;
+    invalidateAttempt();
     publish({ applying: false, failed });
     options.released?.();
     discover();
@@ -314,10 +320,7 @@ export function createUpdateController(options: UpdateOptions) {
     },
     dispose() {
       disposed = true;
-      ++acceptanceId;
-      accepted = undefined;
-      acknowledged = false;
-      clearTimeout(activationTimer);
+      invalidateAttempt();
       sw?.removeEventListener('controllerchange', controllerChanged);
       registration?.removeEventListener('updatefound', updateFound);
       for (const [worker, changed] of watched) worker.removeEventListener('statechange', changed);
