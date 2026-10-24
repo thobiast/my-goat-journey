@@ -247,6 +247,580 @@ async function recoveryFixture(base: string) {
   return { caches, live, a, prefix, metadata, marker, shell, seed };
 }
 
+for (const state of [
+  'empty',
+  'foreign',
+  'metadata',
+  'namespace',
+  'client',
+  'scope',
+  'active',
+  'waiting',
+]) {
+  test(`decision readability characterization W1 fresh admission ${state}`, async () => {
+    const base = '/my-goat-journey/app/';
+    const prefix = `my-goat-journey:${encodeURIComponent(base)}:`;
+    const caches = new MemoryCaches();
+    const metadata = await caches.open(`${prefix}clients`);
+    if (state === 'metadata')
+      await metadata.put(`${base}__app_shell__/unknown`, new Response('unknown'));
+    if (state === 'namespace') await caches.open(`${prefix}shell:other`);
+    if (state === 'foreign') await caches.open('foreign-shell');
+    const b = worker(base, 'B', caches);
+    if (state === 'scope') b.registration.scope = `${origin}/other/`;
+    if (state === 'active') b.registration.active = {};
+    if (state === 'waiting') b.registration.waiting = {};
+    if (state === 'client') b.live.push({ id: '', url: `${origin}${base}` });
+    const operations: string[] = [];
+    let admission = false;
+    const names = caches.keys.bind(caches);
+    vi.spyOn(caches, 'keys').mockImplementation(async () => {
+      if (admission) operations.push('caches');
+      // The first enumeration is retained-name detection, after recovery/W2.
+      admission = true;
+      return names();
+    });
+    const entries = metadata.keys.bind(metadata);
+    vi.spyOn(metadata, 'keys').mockImplementation(async () => {
+      if (admission) operations.push('metadata');
+      return entries();
+    });
+    b.matchAll.mockImplementation(async () => {
+      if (admission) operations.push('clients');
+      return b.live;
+    });
+    const phases: (string | null)[] = [];
+    const put = metadata.put.bind(metadata);
+    vi.spyOn(metadata, 'put').mockImplementation(async (request, response) => {
+      if (key(request) === key(`${base}__app_shell__/installing/B`)) {
+        phases.push(response.headers.get('X-App-Shell-Phase'));
+        admission = false;
+      }
+      return put(request, response);
+    });
+    await b.dispatch('install');
+    expect(operations).toEqual(
+      ['scope', 'active', 'waiting'].includes(state)
+        ? []
+        : state === 'metadata'
+          ? ['metadata']
+          : state === 'namespace'
+            ? ['metadata', 'caches']
+            : ['metadata', 'caches', 'clients'],
+    );
+    expect(phases).toEqual(['empty', 'foreign'].includes(state) ? ['initial', 'verified'] : [null]);
+    if (b.matchAll.mock.calls.length) {
+      expect(b.matchAll).toHaveBeenCalledWith({ type: 'window', includeUncontrolled: true });
+    }
+  });
+}
+
+for (const shape of ['one', 'zero', 'wrong', 'multiple']) {
+  test(`decision readability characterization W1 owned metadata ${shape}`, async () => {
+    const base = '/my-goat-journey/app/';
+    const prefix = `my-goat-journey:${encodeURIComponent(base)}:`;
+    const marker = `${base}__app_shell__/installing/B`;
+    const shell = `${prefix}shell:B`;
+    const caches = new MemoryCaches();
+    const metadata = await caches.open(`${prefix}clients`);
+    await metadata.put(marker, new Response('B', { headers: { 'X-App-Shell-Phase': 'initial' } }));
+    const partial = await caches.open(shell);
+    await partial.put(`${base}index.html`, new Response('partial B'));
+    const b = worker(base, 'B', caches);
+    const operations: string[] = [];
+    const entries = metadata.keys.bind(metadata);
+    let snapshots = 0;
+    let recovery = false;
+    vi.spyOn(metadata, 'keys').mockImplementation(async () => {
+      if (++snapshots !== 2) return entries();
+      // Recovery's first snapshot found the exact initial marker. Observe the
+      // separate owned revalidation, including inconsistent later snapshots.
+      recovery = true;
+      operations.push('metadata');
+      if (shape === 'zero') return [];
+      if (shape === 'wrong') return [new Request(`${origin}${base}__app_shell__/unknown`)];
+      if (shape === 'multiple')
+        return [...(await entries()), new Request(`${origin}${base}__app_shell__/unknown`)];
+      return entries();
+    });
+    const names = caches.keys.bind(caches);
+    vi.spyOn(caches, 'keys').mockImplementation(async () => {
+      if (recovery) operations.push('caches');
+      return names();
+    });
+    b.matchAll.mockImplementation(async () => {
+      if (recovery) operations.push('clients');
+      return [];
+    });
+    const remove = caches.delete.bind(caches);
+    const deletion = vi.spyOn(caches, 'delete').mockImplementation(async (name) => {
+      recovery = false;
+      return remove(name);
+    });
+    if (shape === 'one') {
+      await b.dispatch('install');
+      expect(operations).toEqual(['metadata', 'caches', 'clients']);
+      expect(deletion).toHaveBeenCalledExactlyOnceWith(shell);
+      expect(await (await caches.entries.get(shell)!.match(`${base}index.html`))!.text()).toBe(
+        `B:${base}index.html`,
+      );
+    } else {
+      await expect(b.dispatch('install')).rejects.toThrow(
+        'App-shell installation ownership is unresolved',
+      );
+      expect(operations).toEqual(['metadata']);
+      expect(deletion).not.toHaveBeenCalled();
+      expect(caches.entries.get(shell)).toBe(partial);
+      expect(await (await partial.match(`${base}index.html`))!.text()).toBe('partial B');
+      expect(await metadata.match(marker)).toBeDefined();
+      expect(b.network).not.toHaveBeenCalled();
+    }
+  });
+}
+
+for (const owned of [false, true]) {
+  for (const failure of ['metadata', 'caches', 'clients']) {
+    test(`decision readability characterization W1 ${owned ? 'recovery' : 'admission'} reached ${failure} rejection`, async () => {
+      const base = '/my-goat-journey/app/';
+      const prefix = `my-goat-journey:${encodeURIComponent(base)}:`;
+      const caches = new MemoryCaches();
+      const metadata = await caches.open(`${prefix}clients`);
+      const marker = `${base}__app_shell__/installing/B`;
+      const shell = `${prefix}shell:B`;
+      if (owned) {
+        await metadata.put(
+          marker,
+          new Response('B', { headers: { 'X-App-Shell-Phase': 'initial' } }),
+        );
+        await caches.open(shell);
+      }
+      const b = worker(base, 'B', caches);
+      const sentinel = new Error(`reached ${failure}`);
+      const operations: string[] = [];
+      let decision = false;
+      let snapshots = 0;
+      const entries = metadata.keys.bind(metadata);
+      vi.spyOn(metadata, 'keys').mockImplementation(async () => {
+        if (owned && ++snapshots === 2) decision = true;
+        if (decision) {
+          operations.push('metadata');
+          if (failure === 'metadata') throw sentinel;
+        }
+        return entries();
+      });
+      const names = caches.keys.bind(caches);
+      vi.spyOn(caches, 'keys').mockImplementation(async () => {
+        if (!owned && !decision) {
+          decision = true;
+          return names();
+        }
+        operations.push('caches');
+        if (failure === 'caches') throw sentinel;
+        return names();
+      });
+      b.matchAll.mockImplementation(async () => {
+        operations.push('clients');
+        if (failure === 'clients') throw sentinel;
+        return [];
+      });
+      const deletion = vi.spyOn(caches, 'delete');
+      const installation = b.dispatch('install');
+      if (owned)
+        await expect(installation).rejects.toThrow(
+          'App-shell installation ownership is unresolved',
+        );
+      else await expect(installation).rejects.toBe(sentinel);
+      expect(operations).toEqual(
+        ['metadata', 'caches', 'clients'].slice(
+          0,
+          ['metadata', 'caches', 'clients'].indexOf(failure) + 1,
+        ),
+      );
+      expect(deletion).not.toHaveBeenCalled();
+      expect(b.network).not.toHaveBeenCalled();
+      expect(caches.entries.has(shell)).toBe(owned);
+      expect(metadata.entries.has(key(marker))).toBe(owned);
+    });
+  }
+}
+
+const ownershipScenarios: {
+  name: string;
+  body?: string;
+  phase?: string;
+  active?: string;
+  installed?: string;
+  retired?: string;
+  failure?: string;
+  expected: string;
+}[] = [
+  { name: 'absent', body: undefined, expected: 'ownership' },
+  { name: 'verified', phase: 'verified', expected: 'ownership clone body phase' },
+  {
+    name: 'installed',
+    installed: 'B',
+    expected: 'ownership clone body phase installed installed-body',
+  },
+  {
+    name: 'active',
+    active: 'B',
+    expected: 'ownership clone body phase installed installed-body active active-body',
+  },
+  {
+    name: 'retired',
+    retired: 'B',
+    expected:
+      'ownership clone body phase installed installed-body active active-body retired retired-body',
+  },
+  {
+    name: 'unresolved',
+    expected: 'ownership clone body phase installed installed-body active active-body retired',
+  },
+  {
+    name: 'wrong-body',
+    body: 'wrong',
+    installed: 'B',
+    expected: 'ownership clone body installed installed-body',
+  },
+  {
+    name: 'wrong-phase',
+    phase: 'initial',
+    installed: 'B',
+    expected: 'ownership clone body phase installed installed-body',
+  },
+  {
+    name: 'missing-phase',
+    installed: 'B',
+    expected: 'ownership clone body phase installed installed-body',
+  },
+  {
+    name: 'missing-pointers',
+    active: undefined,
+    installed: undefined,
+    retired: 'B',
+    expected: 'ownership clone body phase installed active retired retired-body',
+  },
+  {
+    name: 'delayed-installed',
+    active: 'B',
+    expected: 'ownership clone body phase installed installed-body active active-body',
+  },
+  ...[
+    'ownership',
+    'clone',
+    'body',
+    'phase',
+    'installed',
+    'installed-body',
+    'active',
+    'active-body',
+    'retired',
+    'retired-body',
+  ].map((failure) => ({
+    name: `reached-${failure}`,
+    failure,
+    retired: 'A',
+    expected:
+      'ownership clone body phase installed installed-body active active-body retired retired-body'
+        .split(' ')
+        .slice(
+          0,
+          [
+            'ownership',
+            'clone',
+            'body',
+            'phase',
+            'installed',
+            'installed-body',
+            'active',
+            'active-body',
+            'retired',
+            'retired-body',
+          ].indexOf(failure) + 1,
+        )
+        .join(' '),
+  })),
+];
+for (const scenario of ownershipScenarios) {
+  test(`decision readability characterization W2 ${scenario.name}`, async () => {
+    const base = '/my-goat-journey/app/';
+    const prefix = `my-goat-journey:${encodeURIComponent(base)}:`;
+    const caches = new MemoryCaches();
+    const metadata = await caches.open(`${prefix}clients`);
+    const marker = `${base}__app_shell__/installing/B`;
+    const shell = `${prefix}shell:B`;
+    const pointer = (name: string) =>
+      `${base}__app_shell__/${name === 'retired' ? 'retired/B' : name}`;
+    // An unknown live window conservatively blocks recovery before ownership
+    // housekeeping. The protocol still runs; only the later decision is logged.
+    for (const name of ['active', 'installed'] as const) {
+      const value = name in scenario ? scenario[name] : 'A';
+      if (value !== undefined) await metadata.put(pointer(name), new Response(value));
+    }
+    if ('retired' in scenario)
+      await metadata.put(pointer('retired'), new Response(scenario.retired));
+    if (scenario.name !== 'absent') {
+      await metadata.put(
+        marker,
+        new Response('body' in scenario ? scenario.body : 'B', {
+          headers:
+            'phase' in scenario && scenario.phase ? { 'X-App-Shell-Phase': scenario.phase } : {},
+        }),
+      );
+    }
+    await caches.open(shell);
+    const b = worker(base, 'B', caches, [{ id: 'unknown', url: `${origin}${base}` }]);
+    const operations: string[] = [];
+    const sentinel = new Error(`W2 ${scenario.name}`);
+    const destination = new Error('destination boundary');
+    const held = barrier();
+    const release = barrier();
+    const record = (operation: string) => {
+      operations.push(operation);
+      if ('failure' in scenario && scenario.failure === operation) throw sentinel;
+    };
+    let decision = false;
+    let original: Response | undefined;
+    const match = metadata.match.bind(metadata);
+    vi.spyOn(metadata, 'match').mockImplementation(async (request) => {
+      if (key(request) === key(marker)) {
+        decision = true;
+        record('ownership');
+        original = await match(request);
+        if (original) {
+          const clone = original.clone.bind(original);
+          vi.spyOn(original, 'clone').mockImplementation(() => {
+            record('clone');
+            const response = clone();
+            const text = response.text.bind(response);
+            vi.spyOn(response, 'text').mockImplementation(async () => {
+              record('body');
+              return text();
+            });
+            return response;
+          });
+          const get = original.headers.get.bind(original.headers);
+          vi.spyOn(original.headers, 'get').mockImplementation((name) => {
+            record('phase');
+            return get(name);
+          });
+        }
+        return original;
+      }
+      const name = ['installed', 'active', 'retired'].find(
+        (name) => key(request) === key(pointer(name)),
+      );
+      if (decision && name) {
+        // A later rejecting read must not be reached after earlier recognition.
+        if (
+          ['verified', 'installed', 'wrong-body', 'wrong-phase', 'missing-phase'].includes(
+            scenario.name,
+          )
+        ) {
+          const forbidden =
+            scenario.name === 'verified'
+              ? ['installed', 'active', 'retired']
+              : ['active', 'retired'];
+          if (forbidden.includes(name)) throw new Error(`unexpected later ${name}`);
+        }
+        if (scenario.name === 'active' && name === 'retired') throw new Error('unexpected retired');
+        record(name);
+        const response = await match(request);
+        if (response) {
+          const text = response.text.bind(response);
+          vi.spyOn(response, 'text').mockImplementation(async () => {
+            record(`${name}-body`);
+            if (scenario.name === 'delayed-installed' && name === 'installed') {
+              held.resolve();
+              await release.promise;
+            }
+            return text();
+          });
+        }
+        return response;
+      }
+      return match(request);
+    });
+    const names = caches.keys.bind(caches);
+    const enumeration = vi.spyOn(caches, 'keys').mockImplementation(async () => {
+      decision = false; // End W2 before retained-name detection/W3/publication.
+      return names();
+    });
+    const open = caches.open.bind(caches);
+    vi.spyOn(caches, 'open').mockImplementation(async (name) => {
+      if (name === shell) throw destination;
+      return open(name);
+    });
+    const deletion = vi.spyOn(caches, 'delete');
+    const writes = vi.spyOn(metadata, 'put');
+    const installation = b.dispatch('install').catch((error: unknown) => error);
+    try {
+      if (scenario.name === 'delayed-installed') {
+        await held.promise;
+        expect(operations).toEqual(
+          'ownership clone body phase installed installed-body'.split(' '),
+        );
+        expect(enumeration).not.toHaveBeenCalled();
+      }
+    } finally {
+      release.resolve();
+    }
+    const error = await installation;
+    if ('failure' in scenario) expect(error).toBe(sentinel);
+    else if (scenario.name === 'unresolved')
+      expect(error).toEqual(new Error('App-shell installation ownership is unresolved'));
+    else expect(error).toBe(destination);
+    expect(operations).toEqual(scenario.expected.split(' '));
+    expect(enumeration).toHaveBeenCalledTimes(
+      'failure' in scenario || scenario.name === 'unresolved' ? 0 : 1,
+    );
+    expect(deletion).not.toHaveBeenCalled();
+    expect(writes).not.toHaveBeenCalled();
+    expect(b.network).not.toHaveBeenCalled();
+    expect(caches.entries.has(shell)).toBe(true);
+    if (original) {
+      expect(original.bodyUsed).toBe(false);
+      expect(await original.text()).toBe('body' in scenario ? scenario.body : 'B');
+    }
+  });
+}
+
+const absentCacheScenarios: {
+  name: string;
+  phase?: string;
+  active?: string;
+  installed?: string;
+  owned?: boolean;
+  retained?: boolean;
+  success?: boolean;
+  failure?: string;
+  expected: string;
+}[] = [
+  { name: 'verified', phase: 'verified', expected: '' },
+  { name: 'active', active: 'B', expected: 'active active-body' },
+  { name: 'installed', installed: 'B', expected: 'active active-body installed installed-body' },
+  {
+    name: 'owned-installed',
+    installed: 'B',
+    owned: true,
+    expected: 'active active-body installed installed-body',
+  },
+  { name: 'no-completion', expected: 'active active-body installed installed-body', success: true },
+  { name: 'retained', retained: true, owned: true, installed: 'B', expected: '', success: true },
+  ...['active', 'active-body', 'installed', 'installed-body'].map((failure) => ({
+    name: `reached-${failure}`,
+    failure,
+    expected: 'active active-body installed installed-body'
+      .split(' ')
+      .slice(0, ['active', 'active-body', 'installed', 'installed-body'].indexOf(failure) + 1)
+      .join(' '),
+  })),
+];
+for (const scenario of absentCacheScenarios) {
+  test(`decision readability characterization W3 ${scenario.name}`, async () => {
+    const base = '/my-goat-journey/app/';
+    const prefix = `my-goat-journey:${encodeURIComponent(base)}:`;
+    const shell = `${prefix}shell:B`;
+    const marker = `${base}__app_shell__/installing/B`;
+    const retired = `${base}__app_shell__/retired/B`;
+    const caches = new MemoryCaches();
+    const metadata = await caches.open(`${prefix}clients`);
+    for (const name of ['active', 'installed'] as const) {
+      await metadata.put(
+        `${base}__app_shell__/${name}`,
+        new Response(name in scenario ? scenario[name] : 'A'),
+      );
+    }
+    await metadata.put(retired, new Response('B'));
+    if ('owned' in scenario || 'phase' in scenario) {
+      await metadata.put(
+        marker,
+        new Response('B', {
+          headers: scenario.phase ? { 'X-App-Shell-Phase': scenario.phase } : {},
+        }),
+      );
+    }
+    if ('retained' in scenario) await caches.open(shell);
+    const before = new Map(metadata.entries);
+    const b = worker(base, 'B', caches, [{ id: 'unknown', url: `${origin}${base}` }]);
+    const sentinel = new Error(`W3 ${scenario.name}`);
+    const operations: string[] = [];
+    const allReads: string[] = [];
+    let interval = 'recovery';
+    const match = metadata.match.bind(metadata);
+    vi.spyOn(metadata, 'match').mockImplementation(async (request) => {
+      const path = new URL(key(request)).pathname.slice(`${base}__app_shell__/`.length);
+      if (path === 'installing/B') interval = 'ownership';
+      allReads.push(`${interval}:${path}`);
+      if (interval !== 'guard') return match(request);
+      operations.push(path);
+      if ('failure' in scenario && scenario.failure === path) throw sentinel;
+      if (scenario.name === 'verified' || (scenario.name === 'active' && path === 'installed')) {
+        throw new Error(`unexpected later ${path}`);
+      }
+      const response = await match(request);
+      if (response) {
+        const text = response.text.bind(response);
+        vi.spyOn(response, 'text').mockImplementation(async () => {
+          operations.push(`${path}-body`);
+          if ('failure' in scenario && scenario.failure === `${path}-body`) throw sentinel;
+          return text();
+        });
+      }
+      return response;
+    });
+    const names = caches.keys.bind(caches);
+    vi.spyOn(caches, 'keys').mockImplementation(async () => {
+      interval = 'guard';
+      return names();
+    });
+    const entries = metadata.keys.bind(metadata);
+    const admission = vi.spyOn(metadata, 'keys').mockImplementation(async () => {
+      if (interval === 'guard') interval = 'admission';
+      return entries();
+    });
+    const open = caches.open.bind(caches);
+    const opening = vi.spyOn(caches, 'open').mockImplementation(async (name) => {
+      if (name === shell) interval = 'publication';
+      return open(name);
+    });
+    const writes = vi.spyOn(metadata, 'put');
+    const removal = vi.spyOn(metadata, 'delete');
+    const deletion = vi.spyOn(caches, 'delete');
+    if ('success' in scenario) {
+      await b.dispatch('install');
+      expect(b.network).toHaveBeenCalledTimes(b.files.length);
+      expect(await (await match(`${base}__app_shell__/installed`))!.text()).toBe('B');
+      expect(allReads.filter((entry) => entry === 'publication:installed')).toHaveLength(1);
+      if ('retained' in scenario) {
+        expect(admission).not.toHaveBeenCalled();
+        expect(writes.mock.calls.map(([request]) => key(request))).not.toContain(key(marker));
+        expect(removal.mock.calls.map(([request]) => key(request))).not.toContain(key(retired));
+      } else {
+        expect(removal.mock.calls.map(([request]) => key(request))).toContain(key(retired));
+        expect(writes.mock.calls.map(([request]) => key(request))).toContain(key(marker));
+      }
+    } else {
+      const installation = b.dispatch('install');
+      if ('failure' in scenario) await expect(installation).rejects.toBe(sentinel);
+      else await expect(installation).rejects.toThrow('App-shell completion is unresolved');
+      expect(admission).not.toHaveBeenCalled();
+      expect(opening.mock.calls.map(([name]) => name)).not.toContain(shell);
+      expect(metadata.entries).toEqual(before);
+      expect(writes).not.toHaveBeenCalled();
+      expect(removal).not.toHaveBeenCalled();
+      expect(b.network).not.toHaveBeenCalled();
+      expect(caches.entries.has(shell)).toBe(false);
+    }
+    expect(operations).toEqual(scenario.expected ? scenario.expected.split(' ') : []);
+    if (scenario.name === 'owned-installed') {
+      expect(allReads.filter((entry) => entry === 'ownership:installed')).toHaveLength(1);
+      expect(allReads.filter((entry) => entry === 'guard:installed')).toHaveLength(1);
+    }
+    expect(deletion).not.toHaveBeenCalled();
+  });
+}
+
 for (const base of ['/', '/my-goat-journey/app/', '/alternate/app/']) {
   for (const phase of ['intent', 'open', 'write', 'transferred', 'published']) {
     test(`${base} persisted termination boundary ${phase} preserves publication ordering`, async () => {

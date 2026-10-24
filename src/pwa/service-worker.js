@@ -45,7 +45,11 @@ const withShellLock = async action => {
 async function firstInstallation(metadata, version, owned = false) {
   if (self.registration.scope !== absolute(CONFIG.base) || self.registration.active || self.registration.waiting) return false;
   const entries = await metadata.keys();
-  if (owned ? entries.length !== 1 || entries[0].url !== installingKey(version) : entries.length !== 0) return false;
+  if (owned) {
+    if (entries.length !== 1 || entries[0].url !== installingKey(version)) return false;
+  } else if (entries.length !== 0) {
+    return false;
+  }
   const allowed = new Set([META]);
   if (owned) allowed.add(`${SHELL_PREFIX}${version}`);
   if ((await caches.keys()).some(name => name.startsWith(PREFIX) && !allowed.has(name))) return false;
@@ -325,11 +329,20 @@ self.addEventListener('install', event => {
     // If recovery cannot prove a marked version disposable or completed, never
     // reuse its possibly partial responses as a retained verified rollback.
     const ownership = await metadata.match(installingKey(CONFIG.version));
-    const verified = await ownership?.clone().text() === CONFIG.version && ownership.headers.get('X-App-Shell-Phase') === 'verified';
+    const ownershipVersion = await ownership?.clone().text();
+    const verified = ownershipVersion === CONFIG.version &&
+      ownership.headers.get('X-App-Shell-Phase') === 'verified';
     if (ownership) {
-      const completed = verified || await read(metadata, installedKey) === CONFIG.version ||
-        await read(metadata, activeKey) === CONFIG.version ||
-        await read(metadata, retiredKey(CONFIG.version)) === CONFIG.version;
+      let completed = verified;
+      if (!completed) {
+        completed = await read(metadata, installedKey) === CONFIG.version;
+      }
+      if (!completed) {
+        completed = await read(metadata, activeKey) === CONFIG.version;
+      }
+      if (!completed) {
+        completed = await read(metadata, retiredKey(CONFIG.version)) === CONFIG.version;
+      }
       if (!completed) throw new Error('App-shell installation ownership is unresolved');
     }
     // A same-version rollback may reuse a retained shell, but does not own it
@@ -340,7 +353,14 @@ self.addEventListener('install', event => {
     if (!retained) {
       // Completion pointers belong to the previous cache incarnation. If its
       // name disappeared, do not recreate scratch beneath that stale evidence.
-      if (verified || await read(metadata, activeKey) === CONFIG.version || await read(metadata, installedKey) === CONFIG.version) {
+      let completionRecorded = verified;
+      if (!completionRecorded) {
+        completionRecorded = await read(metadata, activeKey) === CONFIG.version;
+      }
+      if (!completionRecorded) {
+        completionRecorded = await read(metadata, installedKey) === CONFIG.version;
+      }
+      if (completionRecorded) {
         throw new Error('App-shell completion is unresolved');
       }
       initial = await firstInstallation(metadata, CONFIG.version);
