@@ -1,5 +1,17 @@
 import { createHash } from 'node:crypto';
-import { cp, link, symlink, mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
+import {
+  cp,
+  link,
+  symlink,
+  mkdtemp,
+  mkdir,
+  lstat,
+  readFile,
+  readdir,
+  readlink,
+  writeFile,
+  rm,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { expect, test } from 'vitest';
@@ -55,6 +67,142 @@ test('distribution derives the project license and preserves notices before shel
       expect(metadata.integrity[`${site.appBase}${name}`]).toBe(
         `sha256-${createHash('sha256').update(bytes).digest('base64')}`,
       );
+    }
+  } finally {
+    await rm(f.directory, { recursive: true, force: true });
+  }
+}, 60_000);
+
+async function inputSnapshot(directory: string) {
+  const entries = await readdir(directory, { recursive: true });
+  return Promise.all(
+    entries.sort().map(async (name) => {
+      const path = resolve(directory, name);
+      const stat = await lstat(path);
+      if (stat.isSymbolicLink()) return [name, 'symlink', await readlink(path)];
+      if (stat.isDirectory()) return [name, 'directory'];
+      return [name, 'file', stat.nlink, (await readFile(path)).toString('hex')];
+    }),
+  );
+}
+
+test('decision readability characterization B1: inventory gates precede metadata parsing without changing inputs', async () => {
+  const { assembleSite } = await import('../../scripts/build-site.mjs');
+  const f = await fixture();
+  try {
+    const site = resolveSite({});
+    await buildSite({ ...f, site });
+    const landingBefore = await inputSnapshot(f.landingDir);
+    for (const kind of [
+      'no-assets',
+      'unexpected-file',
+      'missing-required',
+      'empty-directory',
+      'symlink',
+      'hardlink',
+    ]) {
+      const appDir = resolve(f.directory, kind);
+      const output = resolve(f.directory, `rejected-${kind}`);
+      await cp(resolve(f.output, 'app'), appDir, { recursive: true });
+      const worker = await readFile(resolve(appDir, 'sw.js'), 'utf8');
+      await writeFile(
+        resolve(appDir, 'sw.js'),
+        worker.replace(/const CONFIG = (.+);/, 'const CONFIG = {invalid JSON};'),
+      );
+      if (kind === 'unexpected-file') await writeFile(resolve(appDir, '__proto__'), 'unexpected');
+      if (kind === 'missing-required') await rm(resolve(appDir, 'LICENSE'));
+      if (kind === 'no-assets' || kind === 'empty-directory' || kind.endsWith('link')) {
+        await rm(resolve(appDir, 'assets'), { recursive: true });
+      }
+      if (kind === 'empty-directory') await mkdir(resolve(appDir, 'empty'));
+      if (kind === 'symlink') await symlink('LICENSE', resolve(appDir, 'linked'));
+      if (kind === 'hardlink') await link(resolve(appDir, 'LICENSE'), resolve(appDir, 'linked'));
+      const before = await inputSnapshot(appDir);
+      const message =
+        kind === 'empty-directory'
+          ? 'Unexpected empty publication directory: empty/'
+          : kind.endsWith('link')
+            ? 'Publication rejects links and nonregular files: '
+            : 'Unexpected or stale app output';
+      const rejection = assembleSite({ appDir, landingDir: f.landingDir, output, site });
+      await expect(rejection, kind).rejects.toBeInstanceOf(Error);
+      if (kind.endsWith('link')) await expect(rejection, kind).rejects.toThrow(message);
+      else await expect(rejection, kind).rejects.toMatchObject({ name: 'Error', message });
+      await expect(lstat(output), kind).rejects.toMatchObject({ code: 'ENOENT' });
+      expect(await inputSnapshot(appDir), kind).toEqual(before);
+      expect(await inputSnapshot(f.landingDir), kind).toEqual(landingBefore);
+    }
+  } finally {
+    await rm(f.directory, { recursive: true, force: true });
+  }
+}, 60_000);
+
+test('decision readability characterization B2: ordered file lists short-circuit integrity keys and preserve malformed metadata errors', async () => {
+  const { assembleSite } = await import('../../scripts/build-site.mjs');
+  const f = await fixture();
+  try {
+    const site = resolveSite({});
+    const built = await buildSite({ ...f, site });
+    const landingBefore = await inputSnapshot(f.landingDir);
+    for (const kind of [
+      'valid-before',
+      'wrong-files-null-integrity',
+      'reordered-files-null-integrity',
+      'missing-integrity-key',
+      'extra-integrity-key',
+      'null-integrity',
+      'invalid-json',
+      'valid-after',
+    ]) {
+      const appDir = resolve(f.directory, kind);
+      const output = resolve(f.directory, `assembled-${kind}`);
+      await cp(resolve(f.output, 'app'), appDir, { recursive: true });
+      const worker = await readFile(resolve(appDir, 'sw.js'), 'utf8');
+      const encoded = worker.match(/const CONFIG = (.+);/)![1];
+      const metadata = JSON.parse(encoded);
+      if (kind === 'wrong-files-null-integrity') metadata.files.pop();
+      if (kind === 'reordered-files-null-integrity') metadata.files.reverse();
+      if (kind.endsWith('null-integrity')) metadata.integrity = null;
+      if (kind === 'missing-integrity-key') delete metadata.integrity[metadata.files[0]];
+      if (kind === 'extra-integrity-key') metadata.integrity[`${site.appBase}extra.js`] = 'extra';
+      const valid = kind.startsWith('valid-');
+      if (!valid) {
+        await writeFile(
+          resolve(appDir, 'sw.js'),
+          worker.replace(
+            encoded,
+            kind === 'invalid-json' ? '{invalid JSON}' : JSON.stringify(metadata),
+          ),
+        );
+      }
+      const before = await inputSnapshot(appDir);
+      const assembly = assembleSite({
+        appDir,
+        landingDir: valid ? f.landingDir : resolve(f.directory, 'unavailable-landing'),
+        output,
+        site,
+      });
+      if (valid) {
+        expect((await assembly).version, kind).toBe(built.version);
+        expect(await inputSnapshot(resolve(output, 'app')), kind).toEqual(before);
+      } else {
+        if (kind === 'null-integrity') {
+          await expect(assembly, kind).rejects.toBeInstanceOf(TypeError);
+          await expect(assembly, kind).rejects.toThrow(
+            'Cannot convert undefined or null to object',
+          );
+        } else if (kind === 'invalid-json') {
+          await expect(assembly, kind).rejects.toBeInstanceOf(SyntaxError);
+        } else {
+          await expect(assembly, kind).rejects.toMatchObject({
+            name: 'Error',
+            message: 'Incomplete app-shell metadata',
+          });
+        }
+        await expect(lstat(output), kind).rejects.toMatchObject({ code: 'ENOENT' });
+      }
+      expect(await inputSnapshot(appDir), kind).toEqual(before);
+      expect(await inputSnapshot(f.landingDir), kind).toEqual(landingBefore);
     }
   } finally {
     await rm(f.directory, { recursive: true, force: true });

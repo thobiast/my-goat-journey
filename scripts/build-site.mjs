@@ -53,13 +53,30 @@ async function validateApp(directory, site) {
   const names = Object.keys(await hashes(directory));
   const assets = names.filter(name => /^assets\/[A-Za-z0-9_-]+-[A-Za-z0-9_-]{8,}\.(js|css)$/.test(name));
   const expected = new Set(['index.html', 'sw.js', 'LICENSE', ...publicFiles, ...assets]);
-  if (!assets.length || names.some(name => !expected.has(name)) || [...expected].some(name => !names.includes(name))) throw new Error('Unexpected or stale app output');
+  if (!assets.length) {
+    throw new Error('Unexpected or stale app output');
+  }
+  if (names.some(name => !expected.has(name))) {
+    throw new Error('Unexpected or stale app output');
+  }
+  if ([...expected].some(name => !names.includes(name))) {
+    throw new Error('Unexpected or stale app output');
+  }
   const worker = await readFile(resolve(directory, 'sw.js'), 'utf8');
   const encoded = worker.match(/const CONFIG = (.+);/)?.[1];
   if (!encoded) throw new Error('Incomplete worker metadata');
   const metadata = JSON.parse(encoded);
   const shellFiles = [...assets, 'LICENSE', 'third-party-notices.txt', 'index.html', 'site-v1.webmanifest', ...publicFiles.filter(name => name.startsWith('icons/')), 'branding/My_GOAT_Journey_mountain_logo.png'].sort();
-  if (JSON.stringify(metadata.files) !== JSON.stringify(shellFiles.map(name => `${metadata.base}${name}`)) || JSON.stringify(Object.keys(metadata.integrity).sort()) !== JSON.stringify([...metadata.files].sort())) throw new Error('Incomplete app-shell metadata');
+  const declaredShellFiles = JSON.stringify(metadata.files);
+  const expectedShellFiles = JSON.stringify(shellFiles.map(name => `${metadata.base}${name}`));
+  if (declaredShellFiles !== expectedShellFiles) {
+    throw new Error('Incomplete app-shell metadata');
+  }
+  const integrityFiles = JSON.stringify(Object.keys(metadata.integrity).sort());
+  const sortedShellFiles = JSON.stringify([...metadata.files].sort());
+  if (integrityFiles !== sortedShellFiles) {
+    throw new Error('Incomplete app-shell metadata');
+  }
   const digest = createHash('sha256').update(metadata.base).update('\0').update(worker.replace(encoded, '__APP_SHELL_CONFIG__'));
   if (site && metadata.base !== site.appBase) throw new Error('App base does not match SITE_PREFIX');
   for (const url of metadata.files) {
