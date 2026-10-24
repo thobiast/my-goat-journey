@@ -721,9 +721,12 @@ objects) and the current local day; no index is retained in that memo.
 - Failed validation/persistence retains the draft. Successful commit clears it
   through accepted navigation. Saving identical values leaves without a write
   and cannot rebase retained future facts.
-- The App guard captures the first requested destination and fresh-entry/return
-  intent, blocks repeated requests while pending, and defers Settings-origin
-  changes until acceptance.
+- App-local `useDepartureSession` owns dirty reporting, the first captured
+  departure, synchronous pending guard and remembered editing-control focus.
+  It retains dirty state and focus on confirmation dismissal, and clears the
+  session only after accepted navigation or personal-state invalidation.
+  App still resolves and executes destinations, defers Settings-origin changes
+  until acceptance, and keeps update acceptance separate from navigation.
 
 ### Fields and effective-date guidance
 

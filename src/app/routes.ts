@@ -23,3 +23,10 @@ export type Route =
   | ScreenRoute<'progressDay', { scope: CalendarScope; date: LocalDate; window: PeriodWindow }>
   | ScreenRoute<'habitAction', { habitId: string; action: 'archive' | 'reactivate' }>
   | ScreenRoute<'removePillar', { pillarId: string }>;
+
+export type ReturnOrigin = {
+  route: Route;
+  y: number;
+  id: string;
+  reveal?: boolean;
+};

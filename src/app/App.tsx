@@ -48,7 +48,8 @@ import { beforeCreation, displayDefinition } from '../features/habits/habitPrese
 import { PillarHistory } from '../features/progress/PillarHistory';
 import { HabitDetail } from '../features/progress/HabitDetail';
 import { ProgressDayPage } from '../features/progress/ProgressDayPage';
-import type { Route } from './routes';
+import type { ReturnOrigin, Route } from './routes';
+import { useDepartureSession } from './useDepartureSession';
 import {
   backDestination,
   backLabel,
@@ -75,13 +76,6 @@ type SnapshotAcceptance =
       review: boolean;
     }
   | { kind: 'confirmed-replacement' };
-type ReturnOrigin = {
-  route: Route;
-  y: number;
-  id: string;
-  reveal?: boolean;
-};
-
 export function App() {
   const [data, setData] = useState<Dataset>();
   const committed = useRef<Dataset | undefined>(undefined);
@@ -96,17 +90,17 @@ export function App() {
   const [xpFeedback, setXpFeedback] = useState<XpFeedbackValue>();
   const xpFeedbackId = useRef(0);
   const explicitCommits = useRef(0);
-  const [dirty, setDirty] = useState(false);
-  const [departure, setDeparture] = useState<
-    | {
-        route: Route;
-        freshPillars: boolean;
-        restore?: ReturnOrigin;
-      }
-    | { update: true }
-  >();
-  const departurePending = useRef(false);
-  const editingFocus = useRef<HTMLElement | undefined>(undefined);
+  const {
+    dirty,
+    reportDirty,
+    departure,
+    returnFocus,
+    isPending,
+    requestConfirmation,
+    rememberEditingFocus,
+    dismissConfirmation,
+    finishSession,
+  } = useDepartureSession();
   const [formEpoch, setFormEpoch] = useState(0);
   const epoch = useRef(0);
   const feedbackVersion = useRef(0);
@@ -213,7 +207,7 @@ export function App() {
   function updateSafe(entry = false) {
     return (
       document.visibilityState !== 'hidden' &&
-      !departurePending.current &&
+      !isPending() &&
       !!committed.current &&
       pendingWork.current === (entry ? lifecyclePending.current : 0) &&
       operationActive.current === (entry ? lifecycleActive.current : 0) &&
@@ -259,6 +253,8 @@ export function App() {
       controller.dispose();
       updateController.current = undefined;
     };
+    // Mount-owned controller reads the pending ref through isPending at invocation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // Initial loading may settle after worker discovery; only a clean genuine resume resets interaction.
   useEffect(() => {
@@ -268,7 +264,7 @@ export function App() {
   function requestUpdate() {
     if (
       transitionLocked.current ||
-      departurePending.current ||
+      isPending() ||
       safety.current.busy ||
       pendingWork.current > 0 ||
       operationActive.current > 0 ||
@@ -278,8 +274,7 @@ export function App() {
     )
       return;
     if (safety.current.dirty) {
-      departurePending.current = true;
-      setDeparture({ update: true });
+      requestConfirmation({ update: true });
       return;
     }
     void updateController.current?.accept();
@@ -333,10 +328,9 @@ export function App() {
       restore,
     }: { force?: boolean; freshPillars?: boolean; restore?: ReturnOrigin } = {},
   ) {
-    if (transitionLocked.current || (departurePending.current && !force)) return;
+    if (transitionLocked.current || (isPending() && !force)) return;
     if (dirty && !force) {
-      departurePending.current = true;
-      setDeparture({ route: next, freshPillars, restore });
+      requestConfirmation({ route: next, freshPillars, restore });
       return;
     }
     if (next.screen === 'settings' && route.screen !== 'settings') settingsReturn.current = route;
@@ -349,10 +343,7 @@ export function App() {
       restoreOrigin.current = false;
       origin.current = undefined;
     }
-    departurePending.current = false;
-    editingFocus.current = undefined;
-    setDirty(false);
-    setDeparture(undefined);
+    finishSession();
     setRoute(next);
     invalidateRetry();
   }
@@ -456,10 +447,7 @@ export function App() {
     onboardingUnsaved.current = false;
     setDraft(normalizeOnboardingDraft(state.draft));
     editingReview.current = state.draft?.editingReview ?? false;
-    departurePending.current = false;
-    editingFocus.current = undefined;
-    setDirty(false);
-    setDeparture(undefined);
+    finishSession();
     setFormEpoch((n) => n + 1);
   }
 
@@ -1048,16 +1036,7 @@ export function App() {
     <main
       ref={application}
       inert={updateLocked}
-      onFocusCapture={(event) => {
-        const target = event.target;
-        if (
-          !departurePending.current &&
-          target instanceof HTMLElement &&
-          target.closest('form') &&
-          (target.matches('input,textarea,select') || target.closest('fieldset'))
-        )
-          editingFocus.current = target;
-      }}
+      onFocusCapture={(event) => rememberEditingFocus(event.target)}
       className={className}
     >
       {updateNotice}
@@ -1102,15 +1081,11 @@ export function App() {
       {departure && (
         <DiscardDialog
           copy={copy}
-          returnFocus={editingFocus.current}
-          keepEditing={() => {
-            departurePending.current = false;
-            setDeparture(undefined);
-          }}
+          returnFocus={returnFocus}
+          keepEditing={() => dismissConfirmation()}
           discard={() => {
             if ('update' in departure) {
-              departurePending.current = false;
-              setDeparture(undefined);
+              dismissConfirmation();
               discardForUpdate.current = true;
               void updateController.current?.accept().then((accepted) => {
                 if (!accepted) discardForUpdate.current = false;
@@ -1198,7 +1173,7 @@ export function App() {
           busy={busy}
           moveFocus={route.move}
           history={habitDetail}
-          dirty={setDirty}
+          dirty={reportDirty}
           edited={invalidateRetry}
           cancel={back}
           save={(input) =>
@@ -1336,7 +1311,7 @@ export function App() {
       {route.screen === 'habit' && (
         <HabitEditor
           key={formEpoch}
-          dirty={setDirty}
+          dirty={reportDirty}
           edited={invalidateRetry}
           copy={copy}
           pillars={data.pillars}
@@ -1382,7 +1357,7 @@ export function App() {
           key={`${route.pillarId ?? 'new'}-${formEpoch}`}
           name={pillar ? displayPillarName(pillar, copy) : ''}
           rename={!!pillar}
-          dirty={setDirty}
+          dirty={reportDirty}
           copy={copy}
           busy={busy}
           edited={invalidateRetry}

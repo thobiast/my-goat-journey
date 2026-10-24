@@ -67,6 +67,9 @@ async function updates(page: Page, pendingOnEntry = false) {
       const state = window as typeof window & {
         pwaTestOffer?: () => void;
         pwaTestActivationMode?: 'allow' | 'deny' | 'fail' | 'silent';
+        pwaTestHoldAcknowledgement?: boolean;
+        pwaTestAcknowledgementHeld?: boolean;
+        pwaTestDenyAcknowledgement?: () => void;
         pwaTestChecks?: number;
       };
       const worker = Object.assign(new EventTarget(), {
@@ -77,6 +80,15 @@ async function updates(page: Page, pendingOnEntry = false) {
           const mode = state.pwaTestActivationMode ?? 'allow';
           if (mode === 'fail') throw new Error('Isolated activation rejection');
           if (mode === 'silent') return;
+          if (state.pwaTestHoldAcknowledgement) {
+            state.pwaTestAcknowledgementHeld = true;
+            state.pwaTestDenyAcknowledgement = () => {
+              state.pwaTestAcknowledgementHeld = false;
+              state.pwaTestDenyAcknowledgement = undefined;
+              transfer[0].postMessage({ accepted: false });
+            };
+            return;
+          }
           transfer[0].postMessage({ accepted: mode === 'allow' });
           if (mode === 'deny') return;
           sessionStorage.setItem(
@@ -461,6 +473,75 @@ test('backup parse lease survives explicit Settings disposal', async ({ page }) 
   await releaseParse(page);
   await applyResume(page);
   expect(await readDataset(page)).toEqual(before);
+});
+
+test('G3 update lock blocks forced before-creation editor recovery until acknowledgement denial', async ({
+  page,
+}) => {
+  await setup(page);
+  await nav(page, en.pillars).click();
+  await page.getByRole('button', { name: 'Body', exact: true }).click();
+  const row = page
+    .locator('article')
+    .filter({ has: page.getByRole('heading', { name: 'Complete my walk', exact: true }) });
+  await row.getByRole('button', { name: en.edit, exact: true }).click();
+  const editor = page.getByLabel(en.habitFieldLabel, { exact: true });
+  await expect(editor).toHaveValue('Complete my walk');
+  const before = await readDataset(page);
+  const identity = await documentIdentity(page);
+  await page.evaluate(() => {
+    (
+      window as typeof window & { pwaTestHoldAcknowledgement?: boolean }
+    ).pwaTestHoldAcknowledgement = true;
+  });
+  try {
+    await offer(page);
+    await resume(page);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (window as typeof window & { pwaTestAcknowledgementHeld?: boolean })
+              .pwaTestAcknowledgementHeld === true,
+        ),
+      )
+      .toBe(true);
+    await expect(page.locator('main')).toHaveAttribute('inert', '');
+
+    await page.clock.setSystemTime(new Date('2026-09-26T12:00:00'));
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await expect(
+      page.getByRole('heading', { name: en.reviewCompletions, exact: true }),
+    ).toBeVisible();
+    await expect(editor).toHaveCount(0);
+    await expect(page.locator('main')).toHaveAttribute('inert', '');
+    expect(await count(page)).toBe(0);
+    await unchangedDocument(page, identity);
+  } finally {
+    await page.evaluate(() => {
+      const state = window as typeof window & {
+        pwaTestHoldAcknowledgement?: boolean;
+        pwaTestDenyAcknowledgement?: () => void;
+        pwaTestActivationMode?: 'deny';
+      };
+      state.pwaTestHoldAcknowledgement = false;
+      // The date-refresh event also asks the controller to enter again. Deny
+      // that separate attempt so it cannot authorize a reload in this test.
+      state.pwaTestActivationMode = 'deny';
+      state.pwaTestDenyAcknowledgement?.();
+    });
+  }
+  await expect(page.locator('main')).not.toHaveAttribute('inert', '');
+  await unchangedDocument(page, identity);
+  await page.clock.setSystemTime(new Date('2026-09-27T12:00:00'));
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await expect(page.locator('main')).not.toHaveAttribute('inert', '');
+  await expect(editor).toHaveValue('Complete my walk');
+  expect(await readDataset(page)).toEqual(before);
+  expect(await count(page)).toBe(0);
+  await unchangedDocument(page, identity);
+  await nav(page, en.today).click();
+  await expect(page.getByRole('heading', { name: en.today, exact: true })).toBeVisible();
 });
 
 for (const mode of ['deny', 'fail', 'silent'] as const)
