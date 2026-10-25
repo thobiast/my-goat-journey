@@ -215,21 +215,95 @@ test('assembly rejects incomplete shell metadata and stale worker versions', asy
   try {
     const site = resolveSite({});
     await buildSite({ ...f, site });
-    for (const kind of [
-      'incomplete',
-      'version',
-      'corrupt',
-      'proto',
-      'missing-license',
-      'unsigned-license',
-      'corrupt-license',
-      'corrupt-notice',
-    ]) {
+    const pristine = await inputSnapshot(resolve(f.output, 'app'));
+    const landingBefore = await inputSnapshot(f.landingDir);
+    const rejectionCases = [
+      {
+        kind: 'incomplete',
+        name: 'declared shell omits the required 192px icon',
+        message: 'Incomplete app-shell metadata',
+      },
+      {
+        kind: 'version',
+        name: 'worker version does not match unchanged signed bytes',
+        message: 'Stale worker version',
+      },
+      {
+        kind: 'corrupt',
+        name: '192px icon bytes no longer match integrity',
+        message: 'Stale app integrity',
+      },
+      {
+        kind: 'proto',
+        name: 'unexpected __proto__ file is rejected by inventory',
+        message: 'Unexpected or stale app output',
+      },
+      {
+        kind: 'missing-license',
+        name: 'required LICENSE file is missing from inventory',
+        message: 'Unexpected or stale app output',
+      },
+      {
+        kind: 'unsigned-license',
+        name: 'declared shell omits the present LICENSE file',
+        message: 'Incomplete app-shell metadata',
+      },
+      {
+        kind: 'corrupt-license',
+        name: 'LICENSE bytes no longer match integrity',
+        message: 'Stale app integrity',
+      },
+      {
+        kind: 'corrupt-notice',
+        name: 'notice bytes no longer match integrity',
+        message: 'Stale app integrity',
+      },
+    ];
+    for (const { kind, name, message } of rejectionCases) {
       const appDir = resolve(f.directory, kind);
+      const output = resolve(f.directory, `bad-${kind}`);
       await cp(resolve(f.output, 'app'), appDir, { recursive: true });
+      expect(await inputSnapshot(appDir), name).toEqual(pristine);
       const worker = await readFile(resolve(appDir, 'sw.js'), 'utf8');
       const encoded = worker.match(/const CONFIG = (.+);/)![1];
+      const originalMetadata = JSON.parse(encoded);
       const metadata = JSON.parse(encoded);
+      const iconUrl = `${site.appBase}icons/app-icon-192-v1.png`;
+      const licenseUrl = `${site.appBase}LICENSE`;
+      if (kind === 'incomplete') {
+        expect(metadata.files, name).toContain(iconUrl);
+        expect((await lstat(resolve(appDir, 'icons/app-icon-192-v1.png'))).isFile(), name).toBe(
+          true,
+        );
+      }
+      if (kind === 'unsigned-license') {
+        expect(metadata.files, name).toContain(licenseUrl);
+        expect((await lstat(resolve(appDir, 'LICENSE'))).isFile(), name).toBe(true);
+      }
+      if (kind === 'version') expect(metadata.version, name).not.toBe('0'.repeat(64));
+      if (kind === 'proto')
+        await expect(lstat(resolve(appDir, '__proto__')), name).rejects.toMatchObject({
+          code: 'ENOENT',
+        });
+      const changedFile =
+        kind === 'corrupt'
+          ? 'icons/app-icon-192-v1.png'
+          : kind === 'proto'
+            ? '__proto__'
+            : kind === 'missing-license' || kind === 'corrupt-license'
+              ? 'LICENSE'
+              : kind === 'corrupt-notice'
+                ? 'third-party-notices.txt'
+                : 'sw.js';
+      const originalBytes =
+        kind === 'proto' ? undefined : await readFile(resolve(appDir, changedFile));
+      if (originalBytes && changedFile !== 'sw.js') {
+        const url = `${site.appBase}${changedFile}`;
+        expect(metadata.files, name).toContain(url);
+        expect(metadata.integrity[url], name).toBe(
+          `sha256-${createHash('sha256').update(originalBytes).digest('base64')}`,
+        );
+      }
       if (kind === 'incomplete')
         metadata.files = metadata.files.filter(
           (url: string) => !url.includes('app-icon-192-v1.png'),
@@ -249,14 +323,49 @@ test('assembly rejects incomplete shell metadata and stale worker versions', asy
           'truncated third-party notices',
         );
       await writeFile(resolve(appDir, 'sw.js'), worker.replace(encoded, JSON.stringify(metadata)));
-      await expect(
-        assembleSite({
-          appDir,
-          landingDir: f.landingDir,
-          output: resolve(f.directory, `bad-${kind}`),
-          site,
-        }),
-      ).rejects.toThrow(/Unexpected|Incomplete|Stale/i);
+      const mutatedWorker = await readFile(resolve(appDir, 'sw.js'), 'utf8');
+      const mutatedEncoded = mutatedWorker.match(/const CONFIG = (.+);/)![1];
+      expect(JSON.parse(mutatedEncoded), name).toEqual(
+        kind === 'incomplete' || kind === 'unsigned-license'
+          ? {
+              ...originalMetadata,
+              files: originalMetadata.files.filter(
+                (url: string) => url !== (kind === 'incomplete' ? iconUrl : licenseUrl),
+              ),
+            }
+          : kind === 'version'
+            ? { ...originalMetadata, version: '0'.repeat(64) }
+            : originalMetadata,
+      );
+      expect(mutatedWorker.replace(mutatedEncoded, '__APP_SHELL_CONFIG__'), name).toBe(
+        worker.replace(encoded, '__APP_SHELL_CONFIG__'),
+      );
+      if (kind === 'missing-license') {
+        await expect(lstat(resolve(appDir, changedFile)), name).rejects.toMatchObject({
+          code: 'ENOENT',
+        });
+      } else {
+        const mutatedBytes = await readFile(resolve(appDir, changedFile));
+        expect(mutatedBytes, name).not.toEqual(originalBytes);
+        if (kind === 'proto') expect(mutatedBytes.toString(), name).toBe('unexpected output');
+        if (kind === 'corrupt' || kind === 'corrupt-license' || kind === 'corrupt-notice') {
+          expect(metadata.integrity[`${site.appBase}${changedFile}`], name).not.toBe(
+            `sha256-${createHash('sha256').update(mutatedBytes).digest('base64')}`,
+          );
+        }
+      }
+      // Only the intended file changed; snapshot the corrupted fixture, not the pristine app.
+      const before = await inputSnapshot(appDir);
+      expect(
+        before.filter(([path]) => path !== changedFile),
+        name,
+      ).toEqual(pristine.filter(([path]) => path !== changedFile));
+      const rejection = assembleSite({ appDir, landingDir: f.landingDir, output, site });
+      await expect(rejection, name).rejects.toBeInstanceOf(Error);
+      await expect(rejection, name).rejects.toMatchObject({ name: 'Error', message });
+      expect(await inputSnapshot(appDir), name).toEqual(before);
+      expect(await inputSnapshot(f.landingDir), name).toEqual(landingBefore);
+      await expect(lstat(output), name).rejects.toMatchObject({ code: 'ENOENT' });
     }
   } finally {
     await rm(f.directory, { recursive: true, force: true });
