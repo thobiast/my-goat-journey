@@ -81,6 +81,9 @@ function appShell(): Plugin {
 
 export default defineConfig({
   base: resolveSite().appBase,
+  // Preserve the Vite 7 baseline instead of raising browser requirements with Vite 8.
+  // CSS inherits this target, including when Lightning CSS performs minification.
+  build: { target: ['chrome107', 'edge107', 'firefox104', 'safari16'] },
   plugins: [landingDevelopment(), appShell()],
   server: {
     host: '0.0.0.0',

@@ -92,6 +92,13 @@ test('prefixed build precaches only its own base and unchanged manifest identity
   expect(manifest.id).toBeUndefined();
 }, 30_000);
 
+test('production keeps the established JavaScript and CSS browser targets', async () => {
+  const config = await resolveConfig({}, 'build', 'production');
+  const supported = ['chrome107', 'edge107', 'firefox104', 'safari16'];
+  expect(config.build.target).toEqual(supported);
+  expect(config.build.cssTarget).toEqual(supported);
+});
+
 test('development does not enable the production worker generator', async () => {
   const config = await resolveConfig({}, 'serve');
   expect(config.plugins.some((plugin) => plugin.name === 'my-goat-journey-app-shell')).toBe(false);

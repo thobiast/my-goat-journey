@@ -247,6 +247,13 @@ BASE_URL=http://my-goat-journey-runtime:8080/my-goat-journey/app/ \
 
 ## Shared production artifact and runtime
 
+Vite **8.3.5** uses Rolldown/Oxc for JavaScript and Lightning CSS for CSS
+minification. The explicit build target retains the previous JavaScript and CSS
+baseline: Chrome/Edge 107, Firefox 104 and Safari 16. TypeScript's `react-jsx`
+setting continues to select the automatic React JSX runtime. Vitest and its
+related packages remain **4.1.12**; do not couple a Vitest major upgrade to this
+build-tool change. No esbuild or Rollup fallback is installed.
+
 ```sh
 sh scripts/containers.sh build
 # Generates assembled dist/ for the resolved prefix.
