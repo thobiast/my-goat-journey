@@ -1,4 +1,4 @@
-FROM docker.io/library/node:22.23.3-bookworm-slim@sha256:25330af3531fb5e23318554a0aa911125b6e91b1b777edf7655501d207c067a2 AS development
+FROM docker.io/library/node:24.22.1-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS development
 WORKDIR /workspace
 ENV NPM_CONFIG_CACHE=/npm-cache
 EXPOSE 5173

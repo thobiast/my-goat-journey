@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           read -r development_stage < Containerfile
-          if [[ "$development_stage" =~ ^FROM\ docker.io/library/node:([0-9]+\.[0-9]+\.[0-9]+)-bookworm-slim@sha256:[0-9a-f]{64}\ AS\ development$ ]]; then
+          if [[ "$development_stage" =~ ^FROM\ docker.io/library/node:([0-9]+\.[0-9]+\.[0-9]+)-trixie-slim@sha256:[0-9a-f]{64}\ AS\ development$ ]]; then
             printf 'version=%s\n' "${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
           else
             echo 'Expected an exact Node version in the pinned development stage of Containerfile.' >&2

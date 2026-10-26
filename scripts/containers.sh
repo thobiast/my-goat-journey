@@ -147,7 +147,7 @@ case "${1:-help}" in
                 'sh scripts/containers.sh lock-update; normal bootstrap never updates the lock.' >&2
             exit 1
         fi
-        podman build -t "$E2E" -f Containerfile.e2e .
+        podman build --build-arg "NODE_TOOLCHAIN=$DEV" -t "$E2E" -f Containerfile.e2e .
         ;;
     lock-update)
         resources

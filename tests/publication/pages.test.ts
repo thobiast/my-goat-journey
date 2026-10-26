@@ -25,7 +25,10 @@ test('Pages publication is manual, main-only and deploys only the validated shar
   const deploy = pages.split('\n  deploy:\n')[1] || '';
   const guard =
     "if: ${{ github.event_name == 'workflow_dispatch' && github.repository == 'thobiast/my-goat-journey' && github.ref == 'refs/heads/main' }}";
-  for (const job of [build, deploy]) expect(job).toContain(guard);
+  for (const job of [build, deploy]) {
+    expect(job).toContain(guard);
+    expect(job).toContain('runs-on: ubuntu-24.04');
+  }
   expect(build).toContain('contents: read');
   expect(build).toContain('pages: read');
   expect(build).not.toMatch(/pages: write|id-token: write/);

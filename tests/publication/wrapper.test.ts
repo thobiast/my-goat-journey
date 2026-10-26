@@ -214,6 +214,18 @@ test('normal bootstrap consumes the lock; missing or inconsistent lock explains 
     expect(good.status).toBe(0);
     expect(good.calls.some((args) => args.includes('ci'))).toBe(true);
     expect(good.calls.some((args) => args.includes('--package-lock-only'))).toBe(false);
+    const developmentBuild = good.calls.find(
+      (args) => args[0] === 'build' && args.includes('development'),
+    )!;
+    const browserBuild = good.calls.find(
+      (args) => args[0] === 'build' && args.includes('Containerfile.e2e'),
+    )!;
+    expect(developmentBuild).toBeDefined();
+    expect(browserBuild).toBeDefined();
+    const developmentImage = developmentBuild[developmentBuild.indexOf('-t') + 1];
+    expect(browserBuild).toContain('--build-arg');
+    expect(browserBuild).toContain(`NODE_TOOLCHAIN=${developmentImage}`);
+    expect(good.calls.indexOf(developmentBuild)).toBeLessThan(good.calls.indexOf(browserBuild));
     expect(readFileSync(resolve(f.root, 'package-lock.json'), 'utf8')).toBe('{}');
     const inconsistent = f.run('bootstrap', { FAIL_CI: '1' });
     expect(inconsistent.status).not.toBe(0);

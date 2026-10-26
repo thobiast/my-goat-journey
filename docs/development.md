@@ -16,6 +16,18 @@ Run local Node/npm/Vite/TypeScript/Vitest/Playwright commands and browser librar
 
 The wrapper owns network `my-goat-journey`, dependency/cache volumes `my-goat-journey-deps` / `my-goat-journey-cache`, and named `my-goat-journey-dev` / `my-goat-journey-runtime` containers. Ownership labels prevent managing unrelated containers. Local development, browser-test and runtime images use the `:local` tag; their image names identify each responsibility. An empty source `node_modules` mount target does not mean dependencies are installed natively on the host.
 
+The development stage in `Containerfile` pins official **Node 24.22.1 on Debian 13
+Trixie slim**, including its registry digest. Use its bundled **npm 11.19.1** for
+ordinary installation, maintenance and checks. Bootstrap builds that development
+image first, then passes it as `NODE_TOOLCHAIN` to `Containerfile.e2e`. The browser
+image copies its Node executable and bundled npm into the standard `/usr/local`
+locations and removes the older bundled executable/npm; spawned processes use the
+same toolchain without runtime mounts or PATH overrides. Playwright remains
+**1.56.1** with its matching digest-pinned **Ubuntu 24.04 Noble** image, native
+libraries and browsers. Build the development image before building the browser
+image independently; do not maintain a second Node version/digest in the browser
+recipe. The production runtime remains non-root nginx on Alpine.
+
 Development, tool and browser containers intentionally share the checkout bind.
 Use the shared SELinux relabel suffix `:z`, not private `:Z`, so a new container
 does not take checkout access away from a running development container on an
@@ -112,7 +124,7 @@ seam or full A/B/C lifecycle fixture is required for this date-only flow.
 | `sh scripts/containers.sh test` | `npm run test` → `vitest run` | Full ordinary suite, including mocked container-orchestration contracts. |
 | `sh scripts/containers.sh build` | `npm run build` → `node scripts/build-site.mjs` | Single production assembly, output allowlists and pre/post-copy PWA integrity/version validation. |
 
-The digest-pinned development stage in `Containerfile` is the Node-version source of truth (currently **22.23.3**). CI extracts that exact numeric version, fails closed on an unrecognized stage/image format, and passes it to full-SHA-pinned `actions/setup-node` with latest selection and automatic package-manager caching disabled. There is no separate `engines`, `packageManager`, npm pin or npmrc policy to override: use the npm bundled with that Node release, just as the local development image does. No dependency or lock regeneration is part of CI; `lock-update` is a separate deliberate local maintainer operation.
+The digest-pinned development stage in `Containerfile` is the Node-version source of truth (currently **24.22.1**, Debian **13 Trixie**). Both workflows accept only its exact numeric `node:<version>-trixie-slim@sha256:<64 lowercase hex digits> AS development` format, fail closed otherwise, and pass the extracted version to full-SHA-pinned `actions/setup-node` with latest selection and automatic package-manager caching disabled. Hosted checks still run directly on `ubuntu-24.04`; they do not use the local container OS. There is no separate `engines`, `packageManager`, npm pin or npmrc policy to override: use the npm bundled with that Node release, just as the local development image does. No dependency or lock regeneration is part of CI; `lock-update` is a separate deliberate local maintainer operation.
 
 CI records the lockfile SHA-256 before `npm ci` and checks it after installation and after the build. It checks landing/app/worker presence and exact project-license/third-party-notice comparisons. The build reads the shared prefix configuration, not a CI-specific base. Check and build uses read-only permissions, credential-free checkout, pinned actions and manual/default-branch-only review artifact retention; that workflow does not deploy or activate Pages.
 
