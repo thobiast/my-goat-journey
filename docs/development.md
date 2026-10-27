@@ -250,9 +250,29 @@ BASE_URL=http://my-goat-journey-runtime:8080/my-goat-journey/app/ \
 Vite **8.3.5** uses Rolldown/Oxc for JavaScript and Lightning CSS for CSS
 minification. The explicit build target retains the previous JavaScript and CSS
 baseline: Chrome/Edge 107, Firefox 104 and Safari 16. TypeScript's `react-jsx`
-setting continues to select the automatic React JSX runtime. Vitest and its
-related packages remain **4.1.12**; do not couple a Vitest major upgrade to this
-build-tool change. No esbuild or Rollup fallback is installed.
+setting continues to select the automatic React JSX runtime. Vitest is pinned to
+**5.0.5**, with its published dependency relationships selecting the required mocker
+and spy packages; Vite remains an explicit dependency satisfying Vitest's required
+peer. No esbuild or Rollup fallback is installed.
+
+The ordinary suite uses Vitest's isolated Node workers and default per-test mock
+history clearing. Keep setup and assertions test-local; clearing history does not
+restore spy implementations. Playwright E2E is independent of Vitest and does not
+require Vitest Browser Mode, UI or a coverage provider.
+
+For a complete runtime-expanded test inventory, including parameterized cases:
+
+```sh
+sh scripts/containers.sh tool npm exec -- vitest list --staticParse=false
+```
+
+Vitest 5's default static listing does not expand every generated case. Name filters
+(`-t`) match the full `suite > test` name; prefer a distinctive single segment and
+confirm that the selection executes the intended cases. Parameter interpolation
+may format or truncate values in displayed titles, so compare source locations and
+case multiplicity as well as names when reconciling inventories. For machine-readable
+results, set `--reporter=json --outputFile=artifacts/<name>.json` explicitly; JSON
+reports otherwise default to Vitest's `.vitest` directory, not stdout.
 
 ```sh
 sh scripts/containers.sh build
