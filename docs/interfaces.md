@@ -141,7 +141,11 @@ respective commands; drafts, backup validation and UI form checks are separate.
 
 - Guarded proposals reject edits, archival or reactivation that would rewrite
   known history when the device revisits an earlier local date. Known history
-  includes activation-period boundaries even without occurrence rows.
+  includes activation-period boundaries even without occurrence rows. Committed
+  edits also check prospective participation at each pillar's stored removal date
+  using the same boundary-based policy as removal and backup validation; they
+  reject conflicting schedule or membership changes with `historical-conflict`
+  before publishing the proposal. Edit previews retain their nonthrowing contract.
 - Rejected proposals leave caller and persisted facts intact. The UI provides
   review guidance rather than a blind Retry for a historical commitment conflict.
 - Display-only `beforeCreation`, `displayDefinition`, `displayMembership` and

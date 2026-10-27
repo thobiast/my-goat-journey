@@ -8,7 +8,7 @@ import {
 } from './agenda';
 import { newIdentity } from './identity';
 import { DatasetError } from './errors';
-import { requireActivePillar } from './pillars';
+import { pillarHasProspectiveHabits, requireActivePillar } from './pillars';
 import { normalizeGoalInput } from './goalInput';
 import { civilDate, localDate, parseLocalDate } from './calendar';
 import { updateCompletion } from './completion';
@@ -194,7 +194,13 @@ export function editHabit(data: Dataset, habitId: string, input: GoalInput, now:
     )
       throw new DatasetError('historical-conflict');
   }
-  // Publish only after the complete proposed edit has passed the recorded-history guard.
+  // A schedule or move can introduce participation beyond a retained removal
+  // boundary even without later occurrences or activation history.
+  for (const pillar of proposed.pillars) {
+    if (pillar.removedOn && pillarHasProspectiveHabits(proposed, pillar.id, pillar.removedOn))
+      throw new DatasetError('historical-conflict');
+  }
+  // Publish only after the complete proposed edit has passed the historical guards.
   data.habits[data.habits.indexOf(before)] = after;
   data.occurrences = proposed.occurrences;
 }
