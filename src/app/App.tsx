@@ -887,38 +887,41 @@ export function App() {
 
   if (!data.onboardingComplete)
     return (
-      <main ref={application} inert={updateLocked} className="setup">
+      <>
         {updateNotice}
-        {feedback}
-        <Onboarding
-          key={`${formEpoch}:${draft.step}`}
-          copy={copy}
-          draft={draft}
-          language={data.settings.language}
-          busy={busy}
-          status={status}
-          heading={heading}
-          editingReview={editingReview.current}
-          advance={advance}
-          update={update}
-          edit={(index) => {
-            editingReview.current = true;
-            advance(index + 1);
-          }}
-          setLanguage={(language) =>
-            void commit(() => repository.setSettings({ language }, committed.current!.revision))
-          }
-          finalize={() =>
-            void commit(
-              () => repository.finalize(localDate(deviceClock.now()), committed.current!.revision),
-              () => {
-                editingReview.current = false;
-                navigate({ screen: 'today' }, { force: true });
-              },
-            )
-          }
-        />
-      </main>
+        <main ref={application} inert={updateLocked} className="setup">
+          {feedback}
+          <Onboarding
+            key={`${formEpoch}:${draft.step}`}
+            copy={copy}
+            draft={draft}
+            language={data.settings.language}
+            busy={busy}
+            status={status}
+            heading={heading}
+            editingReview={editingReview.current}
+            advance={advance}
+            update={update}
+            edit={(index) => {
+              editingReview.current = true;
+              advance(index + 1);
+            }}
+            setLanguage={(language) =>
+              void commit(() => repository.setSettings({ language }, committed.current!.revision))
+            }
+            finalize={() =>
+              void commit(
+                () =>
+                  repository.finalize(localDate(deviceClock.now()), committed.current!.revision),
+                () => {
+                  editingReview.current = false;
+                  navigate({ screen: 'today' }, { force: true });
+                },
+              )
+            }
+          />
+        </main>
+      </>
     );
   const items = agenda(data, today);
   const summary = summarize(items);
@@ -1048,446 +1051,449 @@ export function App() {
     />
   );
   return (
-    <main
-      ref={application}
-      inert={updateLocked}
-      onFocusCapture={(event) => rememberEditingFocus(event.target)}
-      className={className}
-    >
+    <>
       {updateNotice}
-      {route.screen === 'today' ? (
-        <TodayHeader
-          copy={copy}
-          today={today}
-          language={data.settings.language}
-          summary={summary}
-          totalXp={progress!.totalXp}
-          heading={heading}
-        />
-      ) : (
-        <header className={primaryPage ? 'main-page-header' : undefined}>
-          {quietBack && (
-            <button className="quiet-back" disabled={busy} onClick={back}>
-              ← {visibleBackLabel}
-            </button>
-          )}
-          {showBrand && <p className="brand">My GOAT Journey</p>}
-          <h1 className={primaryPage ? 'page-title' : undefined} ref={heading} tabIndex={-1}>
-            {title}
-          </h1>
-          {(route.screen === 'habitDetail' || readOnlyEditor) && currentHabit && (
-            <h2 className="review-goal user-content">
-              {displayDefinition(currentHabit, today).goal}
-            </h2>
-          )}
-          {pageIntro && (
-            <p className={route.screen === 'journey' ? 'page-intro journey-motto' : 'page-intro'}>
-              {pageIntro}
-            </p>
-          )}
-        </header>
-      )}
-      {feedback}
-      {!quietBack && !primaryPage && (
-        <button disabled={busy} onClick={back}>
-          {route.screen === 'progressDay' ? copy.backToProgress : copy.back}
-        </button>
-      )}
-      {departure && (
-        <DiscardDialog
-          copy={copy}
-          returnFocus={returnFocus}
-          keepEditing={() => dismissConfirmation()}
-          discard={() => {
-            if ('update' in departure) {
-              dismissConfirmation();
-              discardForUpdate.current = true;
-              void updateController.current?.accept().then((accepted) => {
-                if (!accepted) discardForUpdate.current = false;
-              });
-            } else
-              navigate(departure.route, {
-                force: true,
-                freshPillars: departure.freshPillars,
-                restore: departure.restore,
-              });
-          }}
-        />
-      )}
-      {route.screen === 'today' && (
-        <TodayPage
-          items={items}
-          pillars={data.pillars}
-          progress={progress!}
-          language={data.settings.language}
-          copy={copy}
-          busy={busy}
-          xpFeedback={xpFeedback}
-          addHabit={() => create('mind')}
-          toggle={toggleToday}
-        />
-      )}
-      {route.screen === 'progress' && (
-        <ProgressPage
-          data={data}
-          today={today}
-          progress={progress!}
-          copy={copy}
-          busy={busy}
-          value={progressView}
-          change={setProgressView}
-          selectInterval={(interval) => void selectProgressInterval(interval)}
-          openHabit={openHabit}
-          openDay={(scope, date, window) => {
-            const id = `${scope.kind === 'all' ? 'all' : `${scope.kind}:${scope.id}`}:${date}`;
-            dayOrigin.current = { route, y: scrollY, id };
-            navigate({ screen: 'progressDay', scope, date, window });
-          }}
-          openPillar={(pillarId) => {
-            pillarHistoryReturn.current = route;
-            pillarOrigin.current = { route, y: scrollY, id: pillarId };
-            navigate({ screen: 'pillarHistory', pillarId });
-          }}
-          add={() => create('mind')}
-        />
-      )}
-      {route.screen === 'progressDay' && route.date < today && (
-        <ProgressDayPage
-          data={data}
-          today={today}
-          scope={route.scope}
-          date={route.date}
-          window={route.window}
-          copy={copy}
-          busy={busy}
-          openHabit={openHabit}
-          changeDay={(date) => navigate({ ...route, date })}
-          toggle={(item) =>
-            void commit(
-              () =>
-                repository.setDone(
-                  item.habit.id,
-                  item.date,
-                  !item.done,
-                  deviceClock.now(),
-                  data.revision,
-                ),
-              () => setStatus(copy.recordUpdated),
-            )
-          }
-        />
-      )}
-      {(route.screen === 'habitDetail' || readOnlyEditor) && habitDetail}
-      {route.screen === 'editHabit' && !readOnlyEditor && currentHabit && (
-        <EditHabit
-          key={`${currentHabit.id}-${formEpoch}`}
-          data={data}
-          habit={currentHabit}
-          today={today}
-          copy={copy}
-          busy={busy}
-          moveFocus={route.move}
-          history={habitDetail}
-          dirty={reportDirty}
-          edited={invalidateRetry}
-          cancel={back}
-          save={(input) =>
-            void commit(
-              () =>
-                repository.editHabit(
-                  currentHabit.id,
-                  input,
-                  deviceClock.now(),
-                  committed.current!.revision,
-                ),
-              (state) => {
-                if (directEdit.current) {
-                  const changed = state.habits.find((h) => h.id === currentHabit.id)!;
-                  const destination = changed.memberships.at(-1)!.pillarId;
-                  origin.current = {
-                    route: detailReturn.current,
-                    y: managementOrigin.current?.y ?? 0,
-                    id:
-                      (collapsed[destination] ?? true)
-                        ? `group:${destination}`
-                        : `edit:${currentHabit.id}`,
-                    reveal: destination !== currentHabit.memberships.at(-1)!.pillarId,
-                  };
-                  restoreOrigin.current = true;
-                  navigate(detailReturn.current, { force: true });
-                } else
-                  navigate({ screen: 'habitDetail', habitId: currentHabit.id }, { force: true });
-              },
-            )
-          }
-        />
-      )}
-      {route.screen === 'journey' && (
-        <JourneyPage
-          key={progress!.level}
-          progress={progress!}
-          language={data.settings.language}
-          copy={copy}
-        />
-      )}
-      {(route.screen === 'pillars' || route.screen === 'archived') && (
-        <PillarsManagement
-          data={data}
-          today={today}
-          copy={copy}
-          busy={busy}
-          collapsed={collapsed}
-          archived={route.screen === 'archived'}
-          newPillar={() => {
-            returnRoute.current = route;
-            managementOrigin.current = { route, y: scrollY, id: 'new-pillar' };
-            navigate({ screen: 'pillar' });
-          }}
-          managePillar={(pillarId, action) => {
-            returnRoute.current = route;
-            managementOrigin.current = { route, y: scrollY, id: `pillar:${pillarId}` };
-            if (action === 'streaks') {
+      <main
+        ref={application}
+        inert={updateLocked}
+        onFocusCapture={(event) => rememberEditingFocus(event.target)}
+        className={className}
+      >
+        {route.screen === 'today' ? (
+          <TodayHeader
+            copy={copy}
+            today={today}
+            language={data.settings.language}
+            summary={summary}
+            totalXp={progress!.totalXp}
+            heading={heading}
+          />
+        ) : (
+          <header className={primaryPage ? 'main-page-header' : undefined}>
+            {quietBack && (
+              <button className="quiet-back" disabled={busy} onClick={back}>
+                ← {visibleBackLabel}
+              </button>
+            )}
+            {showBrand && <p className="brand">My GOAT Journey</p>}
+            <h1 className={primaryPage ? 'page-title' : undefined} ref={heading} tabIndex={-1}>
+              {title}
+            </h1>
+            {(route.screen === 'habitDetail' || readOnlyEditor) && currentHabit && (
+              <h2 className="review-goal user-content">
+                {displayDefinition(currentHabit, today).goal}
+              </h2>
+            )}
+            {pageIntro && (
+              <p className={route.screen === 'journey' ? 'page-intro journey-motto' : 'page-intro'}>
+                {pageIntro}
+              </p>
+            )}
+          </header>
+        )}
+        {feedback}
+        {!quietBack && !primaryPage && (
+          <button disabled={busy} onClick={back}>
+            {route.screen === 'progressDay' ? copy.backToProgress : copy.back}
+          </button>
+        )}
+        {departure && (
+          <DiscardDialog
+            copy={copy}
+            returnFocus={returnFocus}
+            keepEditing={() => dismissConfirmation()}
+            discard={() => {
+              if ('update' in departure) {
+                dismissConfirmation();
+                discardForUpdate.current = true;
+                void updateController.current?.accept().then((accepted) => {
+                  if (!accepted) discardForUpdate.current = false;
+                });
+              } else
+                navigate(departure.route, {
+                  force: true,
+                  freshPillars: departure.freshPillars,
+                  restore: departure.restore,
+                });
+            }}
+          />
+        )}
+        {route.screen === 'today' && (
+          <TodayPage
+            items={items}
+            pillars={data.pillars}
+            progress={progress!}
+            language={data.settings.language}
+            copy={copy}
+            busy={busy}
+            xpFeedback={xpFeedback}
+            addHabit={() => create('mind')}
+            toggle={toggleToday}
+          />
+        )}
+        {route.screen === 'progress' && (
+          <ProgressPage
+            data={data}
+            today={today}
+            progress={progress!}
+            copy={copy}
+            busy={busy}
+            value={progressView}
+            change={setProgressView}
+            selectInterval={(interval) => void selectProgressInterval(interval)}
+            openHabit={openHabit}
+            openDay={(scope, date, window) => {
+              const id = `${scope.kind === 'all' ? 'all' : `${scope.kind}:${scope.id}`}:${date}`;
+              dayOrigin.current = { route, y: scrollY, id };
+              navigate({ screen: 'progressDay', scope, date, window });
+            }}
+            openPillar={(pillarId) => {
               pillarHistoryReturn.current = route;
-              pillarOrigin.current = managementOrigin.current;
+              pillarOrigin.current = { route, y: scrollY, id: pillarId };
               navigate({ screen: 'pillarHistory', pillarId });
-            } else navigate({ screen: action === 'rename' ? 'pillar' : 'removePillar', pillarId });
-          }}
-          openArchived={() => {
-            archivedOrigin.current = { route, y: scrollY, id: 'archived' };
-            navigate({ screen: 'archived' });
-          }}
-          create={create}
-          toggle={(id) => setCollapsed((value) => ({ ...value, [id]: !(value[id] ?? true) }))}
-          edit={(habitId, move) => {
-            directEdit.current = true;
-            detailReturn.current = route;
-            managementOrigin.current = {
-              route,
-              y: scrollY,
-              id: `${move ? 'more' : 'edit'}:${habitId}`,
-            };
-            navigate({ screen: 'editHabit', habitId, move });
-          }}
-          review={(id, key) => openHabit(id, key)}
-          lifecycle={(habitId, action, id) => {
-            returnRoute.current = route;
-            managementOrigin.current = { route, y: scrollY, id };
-            navigate({ screen: 'habitAction', habitId, action });
-          }}
-        />
-      )}
-      {route.screen === 'habitAction' && currentHabit && !beforeCreation(currentHabit, today) && (
-        <LifecyclePrompt
-          key={`${currentHabit.id}-${formEpoch}`}
-          data={data}
-          habit={currentHabit}
-          today={today}
-          copy={copy}
-          busy={busy}
-          action={route.action}
-          cancel={back}
-          edited={invalidateRetry}
-          confirm={(revision, destination) =>
-            void commit(
-              () =>
-                route.action === 'archive'
-                  ? repository.archiveHabit(currentHabit.id, deviceClock.now(), revision)
-                  : destination
-                    ? repository.reactivateHabitInPillar(
-                        currentHabit.id,
-                        destination,
-                        deviceClock.now(),
-                        revision,
-                      )
-                    : repository.reactivateHabit(currentHabit.id, deviceClock.now(), revision),
-              () => finishManagement(),
-            )
-          }
-        />
-      )}
-      {route.screen === 'pillarHistory' && pillar && (
-        <PillarHistory
-          data={data}
-          pillar={pillar}
-          today={today}
-          progress={progress!}
-          copy={copy}
-          busy={busy}
-          openHabit={openHabit}
-          limit={pillarHistoryLimits[pillar.id] ?? 30}
-          showMore={() =>
-            setPillarHistoryLimits((previous) => ({
-              ...previous,
-              [pillar.id]: (previous[pillar.id] ?? 30) + 30,
-            }))
-          }
-        />
-      )}
-      {route.screen === 'habit' && (
-        <HabitEditor
-          key={formEpoch}
-          dirty={reportDirty}
-          edited={invalidateRetry}
-          copy={copy}
-          pillars={data.pillars}
-          pillarId={route.pillarId}
-          busy={busy}
-          cancel={back}
-          save={(input) => {
-            if (!validGoal(input)) {
-              retry.current = null;
-              setError('goalError');
-              return;
+            }}
+            add={() => create('mind')}
+          />
+        )}
+        {route.screen === 'progressDay' && route.date < today && (
+          <ProgressDayPage
+            data={data}
+            today={today}
+            scope={route.scope}
+            date={route.date}
+            window={route.window}
+            copy={copy}
+            busy={busy}
+            openHabit={openHabit}
+            changeDay={(date) => navigate({ ...route, date })}
+            toggle={(item) =>
+              void commit(
+                () =>
+                  repository.setDone(
+                    item.habit.id,
+                    item.date,
+                    !item.done,
+                    deviceClock.now(),
+                    data.revision,
+                  ),
+                () => setStatus(copy.recordUpdated),
+              )
             }
-            void commit(
-              () =>
-                repository.createHabit(
-                  input,
-                  localDate(deviceClock.now()),
-                  committed.current!.revision,
-                ),
-              (state) => {
-                if (returnRoute.current.screen === 'pillars') {
-                  const created = state.habits.at(-1)!;
-                  const destination = created.memberships.at(-1)!.pillarId;
-                  origin.current = {
-                    route: returnRoute.current,
-                    y: managementOrigin.current?.y ?? 0,
-                    id:
-                      (collapsed[destination] ?? true)
-                        ? `group:${destination}`
-                        : `edit:${created.id}`,
-                    reveal: true,
-                  };
-                  restoreOrigin.current = true;
-                }
-                navigate(returnRoute.current, { force: true });
-              },
-            );
-          }}
-        />
-      )}
-      {route.screen === 'pillar' && (
-        <PillarForm
-          key={`${route.pillarId ?? 'new'}-${formEpoch}`}
-          name={pillar ? displayPillarName(pillar, copy) : ''}
-          rename={!!pillar}
-          dirty={reportDirty}
-          copy={copy}
-          busy={busy}
-          edited={invalidateRetry}
-          cancel={back}
-          save={(name) =>
-            void commit(
-              () =>
-                pillar
-                  ? repository.renamePillar(pillar.id, name, committed.current!.revision)
-                  : repository.createPillar(name, committed.current!.revision),
-              (state) => {
-                if (!pillar && returnRoute.current.screen === 'pillars') {
-                  const created = state.pillars.at(-1)!;
-                  origin.current = {
-                    route: returnRoute.current,
-                    y: 0,
-                    id: `group:${created.id}`,
-                    reveal: true,
-                  };
-                  restoreOrigin.current = true;
+          />
+        )}
+        {(route.screen === 'habitDetail' || readOnlyEditor) && habitDetail}
+        {route.screen === 'editHabit' && !readOnlyEditor && currentHabit && (
+          <EditHabit
+            key={`${currentHabit.id}-${formEpoch}`}
+            data={data}
+            habit={currentHabit}
+            today={today}
+            copy={copy}
+            busy={busy}
+            moveFocus={route.move}
+            history={habitDetail}
+            dirty={reportDirty}
+            edited={invalidateRetry}
+            cancel={back}
+            save={(input) =>
+              void commit(
+                () =>
+                  repository.editHabit(
+                    currentHabit.id,
+                    input,
+                    deviceClock.now(),
+                    committed.current!.revision,
+                  ),
+                (state) => {
+                  if (directEdit.current) {
+                    const changed = state.habits.find((h) => h.id === currentHabit.id)!;
+                    const destination = changed.memberships.at(-1)!.pillarId;
+                    origin.current = {
+                      route: detailReturn.current,
+                      y: managementOrigin.current?.y ?? 0,
+                      id:
+                        (collapsed[destination] ?? true)
+                          ? `group:${destination}`
+                          : `edit:${currentHabit.id}`,
+                      reveal: destination !== currentHabit.memberships.at(-1)!.pillarId,
+                    };
+                    restoreOrigin.current = true;
+                    navigate(detailReturn.current, { force: true });
+                  } else
+                    navigate({ screen: 'habitDetail', habitId: currentHabit.id }, { force: true });
+                },
+              )
+            }
+          />
+        )}
+        {route.screen === 'journey' && (
+          <JourneyPage
+            key={progress!.level}
+            progress={progress!}
+            language={data.settings.language}
+            copy={copy}
+          />
+        )}
+        {(route.screen === 'pillars' || route.screen === 'archived') && (
+          <PillarsManagement
+            data={data}
+            today={today}
+            copy={copy}
+            busy={busy}
+            collapsed={collapsed}
+            archived={route.screen === 'archived'}
+            newPillar={() => {
+              returnRoute.current = route;
+              managementOrigin.current = { route, y: scrollY, id: 'new-pillar' };
+              navigate({ screen: 'pillar' });
+            }}
+            managePillar={(pillarId, action) => {
+              returnRoute.current = route;
+              managementOrigin.current = { route, y: scrollY, id: `pillar:${pillarId}` };
+              if (action === 'streaks') {
+                pillarHistoryReturn.current = route;
+                pillarOrigin.current = managementOrigin.current;
+                navigate({ screen: 'pillarHistory', pillarId });
+              } else
+                navigate({ screen: action === 'rename' ? 'pillar' : 'removePillar', pillarId });
+            }}
+            openArchived={() => {
+              archivedOrigin.current = { route, y: scrollY, id: 'archived' };
+              navigate({ screen: 'archived' });
+            }}
+            create={create}
+            toggle={(id) => setCollapsed((value) => ({ ...value, [id]: !(value[id] ?? true) }))}
+            edit={(habitId, move) => {
+              directEdit.current = true;
+              detailReturn.current = route;
+              managementOrigin.current = {
+                route,
+                y: scrollY,
+                id: `${move ? 'more' : 'edit'}:${habitId}`,
+              };
+              navigate({ screen: 'editHabit', habitId, move });
+            }}
+            review={(id, key) => openHabit(id, key)}
+            lifecycle={(habitId, action, id) => {
+              returnRoute.current = route;
+              managementOrigin.current = { route, y: scrollY, id };
+              navigate({ screen: 'habitAction', habitId, action });
+            }}
+          />
+        )}
+        {route.screen === 'habitAction' && currentHabit && !beforeCreation(currentHabit, today) && (
+          <LifecyclePrompt
+            key={`${currentHabit.id}-${formEpoch}`}
+            data={data}
+            habit={currentHabit}
+            today={today}
+            copy={copy}
+            busy={busy}
+            action={route.action}
+            cancel={back}
+            edited={invalidateRetry}
+            confirm={(revision, destination) =>
+              void commit(
+                () =>
+                  route.action === 'archive'
+                    ? repository.archiveHabit(currentHabit.id, deviceClock.now(), revision)
+                    : destination
+                      ? repository.reactivateHabitInPillar(
+                          currentHabit.id,
+                          destination,
+                          deviceClock.now(),
+                          revision,
+                        )
+                      : repository.reactivateHabit(currentHabit.id, deviceClock.now(), revision),
+                () => finishManagement(),
+              )
+            }
+          />
+        )}
+        {route.screen === 'pillarHistory' && pillar && (
+          <PillarHistory
+            data={data}
+            pillar={pillar}
+            today={today}
+            progress={progress!}
+            copy={copy}
+            busy={busy}
+            openHabit={openHabit}
+            limit={pillarHistoryLimits[pillar.id] ?? 30}
+            showMore={() =>
+              setPillarHistoryLimits((previous) => ({
+                ...previous,
+                [pillar.id]: (previous[pillar.id] ?? 30) + 30,
+              }))
+            }
+          />
+        )}
+        {route.screen === 'habit' && (
+          <HabitEditor
+            key={formEpoch}
+            dirty={reportDirty}
+            edited={invalidateRetry}
+            copy={copy}
+            pillars={data.pillars}
+            pillarId={route.pillarId}
+            busy={busy}
+            cancel={back}
+            save={(input) => {
+              if (!validGoal(input)) {
+                retry.current = null;
+                setError('goalError');
+                return;
+              }
+              void commit(
+                () =>
+                  repository.createHabit(
+                    input,
+                    localDate(deviceClock.now()),
+                    committed.current!.revision,
+                  ),
+                (state) => {
+                  if (returnRoute.current.screen === 'pillars') {
+                    const created = state.habits.at(-1)!;
+                    const destination = created.memberships.at(-1)!.pillarId;
+                    origin.current = {
+                      route: returnRoute.current,
+                      y: managementOrigin.current?.y ?? 0,
+                      id:
+                        (collapsed[destination] ?? true)
+                          ? `group:${destination}`
+                          : `edit:${created.id}`,
+                      reveal: true,
+                    };
+                    restoreOrigin.current = true;
+                  }
                   navigate(returnRoute.current, { force: true });
-                  setStatus(copy.pillarSaved);
-                } else finishManagement(copy.pillarSaved);
-              },
-            )
-          }
-        />
-      )}
-      {route.screen === 'removePillar' && pillar && (
-        <RemovePillar
-          key={`${pillar.id}-${formEpoch}`}
-          data={data}
-          pillar={pillar}
-          today={today}
+                },
+              );
+            }}
+          />
+        )}
+        {route.screen === 'pillar' && (
+          <PillarForm
+            key={`${route.pillarId ?? 'new'}-${formEpoch}`}
+            name={pillar ? displayPillarName(pillar, copy) : ''}
+            rename={!!pillar}
+            dirty={reportDirty}
+            copy={copy}
+            busy={busy}
+            edited={invalidateRetry}
+            cancel={back}
+            save={(name) =>
+              void commit(
+                () =>
+                  pillar
+                    ? repository.renamePillar(pillar.id, name, committed.current!.revision)
+                    : repository.createPillar(name, committed.current!.revision),
+                (state) => {
+                  if (!pillar && returnRoute.current.screen === 'pillars') {
+                    const created = state.pillars.at(-1)!;
+                    origin.current = {
+                      route: returnRoute.current,
+                      y: 0,
+                      id: `group:${created.id}`,
+                      reveal: true,
+                    };
+                    restoreOrigin.current = true;
+                    navigate(returnRoute.current, { force: true });
+                    setStatus(copy.pillarSaved);
+                  } else finishManagement(copy.pillarSaved);
+                },
+              )
+            }
+          />
+        )}
+        {route.screen === 'removePillar' && pillar && (
+          <RemovePillar
+            key={`${pillar.id}-${formEpoch}`}
+            data={data}
+            pillar={pillar}
+            today={today}
+            copy={copy}
+            busy={busy}
+            cancel={back}
+            manage={() => {
+              setCollapsed((value) => ({ ...value, [pillar.id]: false }));
+              finishManagement();
+            }}
+            confirm={(revision) =>
+              void commit(
+                () => repository.removePillar(pillar.id, deviceClock.now(), revision),
+                () => finishManagement(copy.pillarRemoved),
+              )
+            }
+          />
+        )}
+        {route.screen === 'settings' && (
+          <SettingsPage
+            key={formEpoch}
+            beginOperation={beginSettingsOperation}
+            blockUpdate={blockSettingsUpdate}
+            updateState={updateState}
+            checkUpdate={() => void updateController.current?.check(true)}
+            applyUpdate={requestUpdate}
+            updateBlocked={
+              operationBusy ||
+              pendingCount > 0 ||
+              settingsOperationCount > 0 ||
+              settingsUpdateBlocked ||
+              onboardingUnsaved.current
+            }
+            data={data}
+            copy={copy}
+            busy={busy}
+            settings={(patch) => void commit(() => repository.setSettings(patch, data.revision))}
+            fresh={() =>
+              enqueue(() => repository.load(deviceClock.now()), epoch.current, {
+                adoptSnapshot: false,
+              })
+            }
+            edited={invalidateRetry}
+            reset={(revision) =>
+              void commit(
+                () => repository.resetDataset(revision, deviceClock.now()),
+                (state) => {
+                  acceptSnapshot(state, { kind: 'confirmed-replacement' });
+                  setProgressView(initialProgressViewFor(state.settings));
+                  navigate({ screen: 'today' }, { force: true });
+                  setStatus((state.settings.language === 'pt' ? pt : en).dataDeleted);
+                },
+              )
+            }
+            replace={(candidate, revision) =>
+              void commit(
+                () => repository.replaceDataset(candidate, revision, deviceClock.now()),
+                (state) => {
+                  acceptSnapshot(state, { kind: 'confirmed-replacement' });
+                  // Consume once after the Settings remount, without scrolling or delayed callbacks.
+                  if (state.onboardingComplete)
+                    replacementFocus.current = {
+                      epoch: epoch.current,
+                      feedback: feedbackVersion.current,
+                    };
+                  settingsReturn.current = { screen: 'today' };
+                  detailReturn.current = { screen: 'progress' };
+                  pillarHistoryReturn.current = { screen: 'progress' };
+                  origin.current = undefined;
+                  pillarOrigin.current = undefined;
+                  setProgressView(initialProgressViewFor(state.settings));
+                  setStatus((state.settings.language === 'pt' ? pt : en).backupRestored);
+                },
+              )
+            }
+          />
+        )}
+        <BottomNavigation
           copy={copy}
+          active={primary}
           busy={busy}
-          cancel={back}
-          manage={() => {
-            setCollapsed((value) => ({ ...value, [pillar.id]: false }));
-            finishManagement();
-          }}
-          confirm={(revision) =>
-            void commit(
-              () => repository.removePillar(pillar.id, deviceClock.now(), revision),
-              () => finishManagement(copy.pillarRemoved),
-            )
-          }
+          navigationRef={bottomNavigation}
+          open={openDestination}
         />
-      )}
-      {route.screen === 'settings' && (
-        <SettingsPage
-          key={formEpoch}
-          beginOperation={beginSettingsOperation}
-          blockUpdate={blockSettingsUpdate}
-          updateState={updateState}
-          checkUpdate={() => void updateController.current?.check(true)}
-          applyUpdate={requestUpdate}
-          updateBlocked={
-            operationBusy ||
-            pendingCount > 0 ||
-            settingsOperationCount > 0 ||
-            settingsUpdateBlocked ||
-            onboardingUnsaved.current
-          }
-          data={data}
-          copy={copy}
-          busy={busy}
-          settings={(patch) => void commit(() => repository.setSettings(patch, data.revision))}
-          fresh={() =>
-            enqueue(() => repository.load(deviceClock.now()), epoch.current, {
-              adoptSnapshot: false,
-            })
-          }
-          edited={invalidateRetry}
-          reset={(revision) =>
-            void commit(
-              () => repository.resetDataset(revision, deviceClock.now()),
-              (state) => {
-                acceptSnapshot(state, { kind: 'confirmed-replacement' });
-                setProgressView(initialProgressViewFor(state.settings));
-                navigate({ screen: 'today' }, { force: true });
-                setStatus((state.settings.language === 'pt' ? pt : en).dataDeleted);
-              },
-            )
-          }
-          replace={(candidate, revision) =>
-            void commit(
-              () => repository.replaceDataset(candidate, revision, deviceClock.now()),
-              (state) => {
-                acceptSnapshot(state, { kind: 'confirmed-replacement' });
-                // Consume once after the Settings remount, without scrolling or delayed callbacks.
-                if (state.onboardingComplete)
-                  replacementFocus.current = {
-                    epoch: epoch.current,
-                    feedback: feedbackVersion.current,
-                  };
-                settingsReturn.current = { screen: 'today' };
-                detailReturn.current = { screen: 'progress' };
-                pillarHistoryReturn.current = { screen: 'progress' };
-                origin.current = undefined;
-                pillarOrigin.current = undefined;
-                setProgressView(initialProgressViewFor(state.settings));
-                setStatus((state.settings.language === 'pt' ? pt : en).backupRestored);
-              },
-            )
-          }
-        />
-      )}
-      <BottomNavigation
-        copy={copy}
-        active={primary}
-        busy={busy}
-        navigationRef={bottomNavigation}
-        open={openDestination}
-      />
-    </main>
+      </main>
+    </>
   );
 }

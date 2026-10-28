@@ -881,6 +881,13 @@ optional `checkStatus`). The controller exposes `start`, `check(manual?)`,
 - There is no routine Update/Later UI, unconditional claim or `controllerchange`
   reload. Settings checking/pending fallback is localized. Automatic transitions
   never invoke `DiscardDialog`.
+- App owns one stable, noninteractive, polite/atomic update-progress live region outside
+  the inert main region in both onboarding and ordinary application branches.
+  Only applying transitions populate/name it and give it the status role; waiting
+  releases remain quiet without adding an idle status to other page feedback.
+  Settings may retain visual progress inside the locked region, but only the
+  App-owned status is exposed during preparation. Route/language changes do not
+  remount the announcement. Interaction locking remains synchronous before drain.
 - `beginOperation` keeps backup leases alive through disposal; `blockUpdate`
   protects visible confirmations.
 - Per-file integrity, per-document shell assignments and a shared app/base-scoped

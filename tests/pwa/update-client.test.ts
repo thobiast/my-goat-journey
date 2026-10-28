@@ -76,7 +76,19 @@ it.each([en, pt])('waiting updates never render a routine Update/Later notice', 
         },
       }),
     ),
-  ).toBe('');
+  ).toBe('<p aria-live="polite" aria-atomic="true" class="visually-hidden"></p>');
+});
+
+it.each([en, pt])('applying updates use a named polite atomic noninteractive status', (copy) => {
+  const html = renderToStaticMarkup(
+    createElement(UpdateNotice, {
+      copy,
+      state: { available: true, applying: true, checking: false, supported: true, failed: false },
+    }),
+  );
+  expect(html).toBe(
+    `<p role="status" aria-label="${copy.updateApplying}" aria-live="polite" aria-atomic="true" class="visually-hidden">${copy.updateApplying}</p>`,
+  );
 });
 
 it.each([

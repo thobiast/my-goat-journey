@@ -1,6 +1,7 @@
 import { test, expect, chromium, type Page } from '@playwright/test';
 import { createServer, request as upstreamRequest, type Server } from 'node:http';
 import { readFile, writeFile, mkdir, mkdtemp } from 'node:fs/promises';
+import { expectUpdateAnnouncement } from './support/update-announcement';
 import { NativeTransferStall } from './support/native-transfer-stall';
 import { interruptedInstallationRegressions } from './support/interrupted-installation-regressions';
 import { spawn } from 'node:child_process';
@@ -845,6 +846,41 @@ for (const language of ['en', 'pt'] as const)
     await context.setOffline(true);
     await page.reload();
     await applied(page, version, language);
+    expect(await readDataset(page)).toEqual(saved);
+  });
+
+for (const language of ['en', 'pt'] as const)
+  test(`native applying announcement survives inert preparation and guarded adoption (${language})`, async ({
+    page,
+  }, info) => {
+    const copy = language === 'en' ? en : pt;
+    await setup(page, language);
+    const saved = await readDataset(page);
+    const identity = await documentIdentity(page);
+    const original = await pointer(page, 'active');
+    const version = await switchBuild(page);
+    expect(version).not.toBe(original);
+    const show = await background(page);
+    await holdNextCommit(page, 'readonly');
+    // Existing lifecycle-read seam: native IndexedDB commits, but App's queue
+    // remains pending. The compiled controller and workers are not replaced.
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect.poll(() => commitHeld(page)).toBe(true);
+    try {
+      await show();
+      await expectUpdateAnnouncement(page, copy.updateApplying, info);
+      await unchangedDocument(page, identity);
+      expect(await pointer(page, 'active')).toBe(original);
+    } finally {
+      await releaseCommit(page);
+    }
+    await expect.poll(() => documentIdentity(page)).not.toBe(identity);
+    await applied(page, version, language);
+    await expect(page.locator('main')).not.toHaveAttribute('inert', '');
+    await expect(page.getByRole('checkbox').first()).toBeEnabled();
+    await expect(
+      page.locator('p.visually-hidden[role="status"]').filter({ hasText: copy.updateApplying }),
+    ).toHaveCount(0);
     expect(await readDataset(page)).toEqual(saved);
   });
 

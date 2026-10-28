@@ -8,6 +8,7 @@ import {
   unchangedDocument,
   resume,
 } from './support/pwa-update';
+import { expectUpdateAnnouncement } from './support/update-announcement';
 import en from '../src/i18n/en.json' with { type: 'json' };
 import pt from '../src/i18n/pt.json' with { type: 'json' };
 
@@ -48,6 +49,18 @@ async function updates(page: Page, pendingOnEntry = false) {
     // do not retry HTTP/application failures or alter lifecycle assertions.
     const response = await route.fetch({ maxRetries: 2 });
     const injection = `options.enabled = true; options.timeoutMs = 500;
+      const pwaTestPrepare = options.prepare;
+      options.prepare = async () => {
+        const prepared = pwaTestPrepare();
+        if (globalThis.pwaTestHoldPreparation) {
+          globalThis.pwaTestPreparationHeld = true;
+          await new Promise(resolve => { globalThis.pwaTestReleasePreparation = resolve; });
+          globalThis.pwaTestPreparationHeld = false;
+        }
+        const safe = await prepared;
+        if (globalThis.pwaTestPreparationOutcome === 'fail') throw new Error('Isolated preparation failure');
+        return globalThis.pwaTestPreparationOutcome === 'cancel' ? false : safe;
+      };
       const pwaTestAccept = options.canAccept, pwaTestChanged = options.changed;
       options.canAccept = () => {
         const result = pwaTestAccept();
@@ -166,6 +179,129 @@ async function applyResume(page: Page) {
   await expect.poll(() => count(page)).toBe(1);
   await expect.poll(() => documentIdentity(page)).not.toBe(identity);
 }
+
+for (const language of ['en', 'pt'] as const)
+  for (const branch of ['application', 'settings', 'onboarding'] as const)
+    test(`applying announcement stays exposed during held preparation ${branch} ${language}`, async ({
+      page,
+    }, info) => {
+      const copy = language === 'en' ? en : pt;
+      await updates(page);
+      if (branch !== 'onboarding') {
+        await setupScheduledHabits(page);
+        await nav(page, en.settings).click();
+      } else {
+        await page.goto('./');
+        await expect(page.getByRole('button', { name: en.start, exact: true })).toBeVisible();
+      }
+      const announcement = await page
+        .locator('main')
+        .evaluateHandle((element) => element.previousElementSibling);
+      if (language === 'pt') {
+        await page.getByLabel(en.language, { exact: true }).selectOption('pt');
+        await expect.poll(async () => (await readDataset(page)).settings.language).toBe('pt');
+      }
+      if (branch === 'application') await nav(page, copy.today).click();
+      const before = await readDataset(page);
+      const identity = await documentIdentity(page);
+      await page.evaluate(() => {
+        (window as typeof window & { pwaTestHoldPreparation?: boolean }).pwaTestHoldPreparation =
+          true;
+      });
+      try {
+        // Existing safe-resume entry also supports incomplete onboarding; no new UI action.
+        await offer(page);
+        await resume(page);
+        await expect
+          .poll(() =>
+            page.evaluate(
+              () =>
+                !!(window as typeof window & { pwaTestPreparationHeld?: boolean })
+                  .pwaTestPreparationHeld,
+            ),
+          )
+          .toBe(true);
+        await expectUpdateAnnouncement(page, copy.updateApplying, info);
+        expect(await count(page)).toBe(0);
+        await unchangedDocument(page, identity);
+      } finally {
+        await page.evaluate((branch) => {
+          const state = window as typeof window & {
+            pwaTestHoldPreparation?: boolean;
+            pwaTestReleasePreparation?: () => void;
+            pwaTestActivationMode?: string;
+            pwaTestPreparationOutcome?: string;
+          };
+          state.pwaTestActivationMode = 'deny';
+          state.pwaTestPreparationOutcome =
+            branch === 'settings' ? 'fail' : branch === 'application' ? 'cancel' : undefined;
+          state.pwaTestHoldPreparation = false;
+          state.pwaTestReleasePreparation?.();
+        }, branch);
+      }
+      await expect(page.locator('main')).not.toHaveAttribute('inert', '');
+      await expect(
+        page.locator('p.visually-hidden[role="status"]').filter({ hasText: copy.updateApplying }),
+      ).toHaveCount(0);
+      await expect(page.getByRole('button').first()).toBeEnabled();
+      expect(await readDataset(page)).toEqual(before);
+      await unchangedDocument(page, identity);
+      await page.evaluate(() => {
+        const state = window as typeof window & {
+          pwaTestActivationMode?: string;
+          pwaTestHoldPreparation?: boolean;
+          pwaTestPreparationOutcome?: string;
+        };
+        state.pwaTestPreparationOutcome = undefined;
+        state.pwaTestActivationMode = 'allow';
+        state.pwaTestHoldPreparation = true;
+      });
+      expect(
+        await announcement.evaluate(
+          (element) => element === document.querySelector('main')?.previousElementSibling,
+        ),
+      ).toBe(true);
+      await expect(page.locator('main').locator('..').locator('> p.visually-hidden')).toHaveText(
+        '',
+      );
+      // Failed automatic candidates require the existing explicit fallback, not
+      // another automatic attempt; cancellation/denial can use a later safe resume.
+      await resume(page);
+      if (branch === 'settings') {
+        expect(
+          await page.evaluate(
+            () =>
+              !!(window as typeof window & { pwaTestPreparationHeld?: boolean })
+                .pwaTestPreparationHeld,
+          ),
+        ).toBe(false);
+        await update(page, language).click();
+      }
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () =>
+              !!(window as typeof window & { pwaTestPreparationHeld?: boolean })
+                .pwaTestPreparationHeld,
+          ),
+        )
+        .toBe(true);
+      const loaded = page.waitForEvent('domcontentloaded');
+      await page.evaluate(() => {
+        const state = window as typeof window & {
+          pwaTestHoldPreparation?: boolean;
+          pwaTestReleasePreparation?: () => void;
+        };
+        state.pwaTestHoldPreparation = false;
+        state.pwaTestReleasePreparation?.();
+      });
+      await loaded;
+      await expect.poll(() => count(page)).toBe(1);
+      await expect.poll(() => documentIdentity(page)).not.toBe(identity);
+      await expect(page.locator('main')).not.toHaveAttribute('inert', '');
+      await expect(page.getByRole('button').first()).toBeEnabled();
+      expect(await readDataset(page)).toEqual(before);
+    });
 
 async function setup(page: Page) {
   await updates(page);
