@@ -6,6 +6,8 @@ import { EditHabit } from '../../src/features/habits/EditHabit';
 import { deviceClock } from '../../src/domain/calendar';
 import { displayDate } from '../../src/presentation/civilDate';
 import { facts } from '../domain/fixtures';
+import { legacyFixture } from '../data/fixtures';
+import { migrateDataset } from '../../src/data/migrations';
 import { describe, expect, it, vi } from 'vitest';
 import { GoalFields } from '../../src/features/habits/GoalFields';
 import {
@@ -18,6 +20,36 @@ import en from '../../src/i18n/en.json';
 import pt from '../../src/i18n/pt.json';
 
 describe('Editing current and pending definitions', () => {
+  for (const copy of [en, pt])
+    it(`preserves a locked differing source without inventing future move timing (${copy.everyDay})`, () => {
+      const clock = vi.spyOn(deviceClock, 'now').mockReturnValue(new Date(2026, 9, 2, 12));
+      try {
+        const data = migrateDataset(legacyFixture());
+        data.settings.language = copy === en ? 'en' : 'pt';
+        const before = structuredClone(data);
+        const markup = renderToStaticMarkup(
+          createElement(EditHabit, {
+            data,
+            habit: data.habits[0],
+            today: '2026-10-02',
+            copy,
+            busy: false,
+            save: () => {},
+            edited: () => {},
+            cancel: () => {},
+            dirty: () => {},
+          }),
+        );
+        expect(markup).toContain(
+          copy === en ? 'Today stays in My music.' : 'Hoje permanece em My music.',
+        );
+        expect(markup).not.toContain(copy === en ? 'This habit moves' : 'Este hábito muda');
+        expect(data).toEqual(before);
+      } finally {
+        clock.mockRestore();
+      }
+    });
+
   for (const copy of [en, pt])
     it(`shows compact scheduled notes with only affected saved values (${copy.everyDay})`, () => {
       const clock = vi.spyOn(deviceClock, 'now').mockReturnValue(new Date(2026, 8, 30, 12));
@@ -91,8 +123,9 @@ describe('Editing current and pending definitions', () => {
       expect(markup).not.toContain('Goal and weekdays apply from');
       expect(markup).not.toContain('Today’s goal and schedule stay unchanged.');
       expect(markup).toContain(
-        `Complete this habit today to count in Body. Otherwise, it moves on ${displayDate('2026-10-02', 'en')}.`,
+        `Today stays in Mind. This habit moves to Body on ${displayDate('2026-10-02', 'en')}.`,
       );
+      expect(markup).not.toContain('Complete this habit today to count in Body.');
     } finally {
       clock.mockRestore();
     }

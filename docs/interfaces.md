@@ -124,6 +124,21 @@ respective commands; drafts, backup validation and UI form checks are separate.
   in the destination only on completion, with one habit/date reward and no new
   optional creation-day opportunity. Move boundaries and definition boundaries
   are resolved independently.
+- Edit preview and application compare the selected destination with the latest
+  prospective membership, not the dated source, to decide whether this is a new
+  destination choice that may reassign today's uncredited, unlocked occurrence.
+  Retaining a saved future destination during a goal/schedule edit preserves
+  today's assignment even on a revisited date. Preview reports that dated source
+  separately from the target and the next scheduled membership date; a retained
+  pending target keeps its original request date while the edited schedule may
+  rebase its due date. Preview is read-only and does not run committed historical
+  validation; Save remains authoritative and can reject a conflicting proposal.
+- Today's assignment effect and future membership timing are independent. Cancelling
+  a not-yet-due move can retarget an eligible current occurrence without creating a
+  future membership boundary; preview then omits `moveDate`. A retained locked
+  source may likewise need source-only wording, not an invented future move date.
+  Settled future memberships without pending metadata remain timeline facts, not
+  cancellable intent; an earlier-date proposal does not implicitly erase them.
 - Cancelling an earlier uncredited conditional move on a later date retains that
   management decision as an explicit membership boundary, even when it repeats
   the source pillar. First historical credit may anticipate its own move but

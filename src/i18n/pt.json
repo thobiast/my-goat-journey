@@ -117,6 +117,7 @@
   "moveCreditedHelp": "A conclusão de hoje permanece em {source}. Este hábito muda para {target} em {date}.",
   "moveUndoneHelp": "A meta de hoje permanece em {source}. Este hábito muda para {target} em {date}.",
   "movePreservedHelp": "Hoje permanece em {source}. Este hábito muda para {target} em {date}.",
+  "moveTodayPreservedHelp": "Hoje permanece em {source}.",
   "moveBeforeHelp": "Conclua este hábito hoje para contar em {target}. Caso contrário, a mudança começa em {date}.",
   "countsWhenDone": "Conta em {target} ao concluir.",
   "conditionalParticipation": "Conta aqui ao concluir",

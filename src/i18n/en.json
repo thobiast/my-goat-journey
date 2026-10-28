@@ -209,6 +209,7 @@
   "moveCreditedHelp": "Today's completion stays in {source}. This habit moves to {target} on {date}.",
   "moveUndoneHelp": "Today's goal stays in {source}. This habit moves to {target} on {date}.",
   "movePreservedHelp": "Today stays in {source}. This habit moves to {target} on {date}.",
+  "moveTodayPreservedHelp": "Today stays in {source}.",
   "moveBeforeHelp": "Complete this habit today to count in {target}. Otherwise, it moves on {date}.",
   "countsWhenDone": "Counts in {target} when done.",
   "conditionalParticipation": "Counts here when completed",

@@ -82,7 +82,7 @@ export function EditHabit({
 
   const fill = (template: string) =>
     template
-      .replace('{date}', displayDate(preview!.moveDate!, data.settings.language))
+      .replace('{date}', () => displayDate(preview!.moveDate!, data.settings.language))
       .replace('{source}', () => name(preview!.sourcePillarId))
       .replace('{target}', () => name(preview!.targetPillarId));
 
@@ -155,18 +155,20 @@ export function EditHabit({
       )}
       {preview?.moveMode === 'conditional' && (
         <>
-          <p>{fill(copy.moveBeforeHelp)}</p>
+          <p>{fill(preview.moveDate ? copy.moveBeforeHelp : copy.countsWhenDone)}</p>
           <p>{item?.kind === 'optional' ? copy.optionalHelp : copy.requiredToday}</p>
         </>
       )}
       {preview?.moveMode === 'preserved' && (
         <p>
           {fill(
-            item?.done
-              ? copy.moveCreditedHelp
-              : item?.completionProvenance === 'credited'
-                ? copy.moveUndoneHelp
-                : copy.movePreservedHelp,
+            !preview.moveDate
+              ? copy.moveTodayPreservedHelp
+              : item?.done
+                ? copy.moveCreditedHelp
+                : item?.completionProvenance === 'credited'
+                  ? copy.moveUndoneHelp
+                  : copy.movePreservedHelp,
           )}
         </p>
       )}

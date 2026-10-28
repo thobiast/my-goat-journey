@@ -103,6 +103,14 @@ export interface HabitEditPreview {
   moveMode: 'none' | 'conditional' | 'preserved';
 }
 
+/** A dated source is not the prospective destination already selected by a saved edit. */
+function editMoveIntent(habit: Habit, pillarId: string, today: LocalDate) {
+  return {
+    destinationChanged: habit.memberships.at(-1)!.pillarId !== pillarId,
+    requestedOn: habit.pendingMove?.pillarId === pillarId ? habit.pendingMove.requestedOn : today,
+  };
+}
+
 export function previewHabitEdit(
   data: Dataset,
   habitId: string,
@@ -115,26 +123,31 @@ export function previewHabitEdit(
     throw new Error('Archived habit cannot be edited');
   const normalized = normalizeGoalInput(data, input);
   reconcilePendingMove(habit, today);
+  const intent = editMoveIntent(habit, normalized.pillarId, today);
   const item = agenda(data, today).find((i) => i.habit.id === habitId);
   const sourcePillarId = item?.pillarId ?? membershipAt(habit, today)!.pillarId;
-  const moving =
-    sourcePillarId !== normalized.pillarId || habit.pendingMove?.pillarId === normalized.pillarId;
-  const requestedOn =
-    habit.pendingMove?.pillarId === normalized.pillarId ? habit.pendingMove.requestedOn : today;
+  const changesTodayAssignment =
+    intent.destinationChanged &&
+    item &&
+    !item.exempt &&
+    !item.assignmentLocked &&
+    item.completionProvenance === 'never-credited';
+  // Reconciled pending boundaries lie after today. Removing one during Save cannot
+  // change this dated owner; cancellation may affect today without a future move.
+  const changesFutureMembership = membershipAt(habit, today)!.pillarId !== normalized.pillarId;
   editDefinition(habit, normalized, today);
   return {
     effectiveFrom: tomorrow(today),
     sourcePillarId,
     targetPillarId: normalized.pillarId,
-    moveMode: !moving
-      ? 'none'
-      : item &&
-          !item.exempt &&
-          !item.assignmentLocked &&
-          item.completionProvenance === 'never-credited'
-        ? 'conditional'
-        : 'preserved',
-    ...(moving ? { moveDate: nextHabitScheduledDate(habit, requestedOn) } : {}),
+    moveMode: changesTodayAssignment
+      ? 'conditional'
+      : changesFutureMembership || sourcePillarId !== normalized.pillarId
+        ? 'preserved'
+        : 'none',
+    ...(changesFutureMembership
+      ? { moveDate: nextHabitScheduledDate(habit, intent.requestedOn) }
+      : {}),
   };
 }
 
@@ -215,13 +228,13 @@ function applyHabitEdit(data: Dataset, habitId: string, input: GoalInput, now: D
   reconcileHabit(habit, today);
   const previousIntent = habit.pendingMove;
   const previousDue = pendingMoveDate(habit);
-  const owner = habit.memberships.at(-1)!.pillarId;
+  const intent = editMoveIntent(habit, normalized.pillarId, today);
   const item = agenda(data, today).find((i) => i.habit.id === habitId);
   if (previousDue)
     habit.memberships = habit.memberships.filter((m) => m.effectiveFrom !== previousDue);
   delete habit.pendingMove;
   editDefinition(habit, normalized, today);
-  if (owner !== normalized.pillarId && item && !item.exempt) {
+  if (intent.destinationChanged && item && !item.exempt) {
     updateCompletion(data, habitId, today, item.done, now);
     const occurrence = data.occurrences.find((o) => o.habitId === habitId && o.date === today)!;
     if (!occurrence.assignmentLocked && occurrence.completionProvenance === 'never-credited') {
@@ -230,9 +243,7 @@ function applyHabitEdit(data: Dataset, habitId: string, input: GoalInput, now: D
     }
   }
   if (membershipAt(habit, today)!.pillarId !== normalized.pillarId) {
-    const requestedOn =
-      previousIntent?.pillarId === normalized.pillarId ? previousIntent.requestedOn : today;
-    habit.pendingMove = { requestedOn, pillarId: normalized.pillarId };
+    habit.pendingMove = { requestedOn: intent.requestedOn, pillarId: normalized.pillarId };
     const effectiveFrom = pendingMoveDate(habit)!;
     habit.memberships = habit.memberships.filter((m) => m.effectiveFrom !== effectiveFrom);
     habit.memberships.push({ effectiveFrom, pillarId: normalized.pillarId });

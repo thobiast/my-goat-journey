@@ -1,6 +1,7 @@
 import { expect, test, vi } from 'vitest';
 import { Repository } from '../../src/data/database';
 import { agenda, definitionAt, membershipAt, summarize } from '../../src/domain/agenda';
+import { previewHabitEdit } from '../../src/domain/lifecycle';
 import { calculateProgress } from '../../src/domain/progress';
 import { facts } from '../domain/fixtures';
 import { seed, stored, legacyFixture } from './fixtures';
@@ -62,6 +63,17 @@ test('effective edits persist tomorrow only; same-day saves replace, revert remo
 
 test('a pre-credit move keeps habit/daily requirement but destination participation conditional through persisted Undo/Redo', async () => {
   const { repo, name } = await setup();
+  const before = await repo.load(friday);
+  const proposal = { pillarId: 'body', goal: 'Read 10 pages', weekdays: [1, 3, 5] };
+  const preview = previewHabitEdit(before, 'read', proposal, friday);
+  expect(preview).toEqual({
+    effectiveFrom: '2026-10-03',
+    sourcePillarId: 'mind',
+    targetPillarId: 'body',
+    moveMode: 'conditional',
+    moveDate: '2026-10-05',
+  });
+  expect(before).toEqual(facts());
   const moved = await repo.editHabit(
     'read',
     { pillarId: 'body', goal: 'Read 10 pages', weekdays: [1, 3, 5] },
@@ -169,12 +181,35 @@ test.each([
     if (scenario.includes('undo')) await repo.setDone('read', date, false, friday);
     const before = await repo.load(now);
     const target = scenario === 'conditional-undo' ? 'third' : 'body';
+    const untouched = structuredClone(before);
+    const preview = previewHabitEdit(
+      before,
+      'read',
+      { pillarId: target, goal: 'Read 10 pages', weekdays: [1, 3, 5] },
+      now,
+    );
+    expect(before).toEqual(untouched);
+    expect(preview).toMatchObject({
+      targetPillarId: target,
+      moveMode: scenario === 'creation-optional' ? 'conditional' : 'preserved',
+      moveDate: scenario === 'creation-optional' ? '2026-09-28' : '2026-10-05',
+    });
     const edited = await repo.editHabit(
       'read',
       { pillarId: target, goal: 'Read 10 pages', weekdays: [1, 3, 5] },
       now,
       before.revision,
     );
+    expect(membershipAt(edited.habits[0], preview.moveDate!)?.pillarId).toBe(target);
+    expect(edited.habits[0].pendingMove).toEqual({
+      requestedOn:
+        scenario === 'off-schedule'
+          ? '2026-10-03'
+          : scenario === 'creation-optional'
+            ? '2026-09-27'
+            : '2026-10-02',
+      pillarId: target,
+    });
     if (scenario === 'off-schedule') expect(agenda(edited, '2026-10-03')).toEqual([]);
     else if (scenario === 'creation-optional')
       expect(agenda(edited, date)[0]).toMatchObject({
