@@ -169,6 +169,35 @@ respective commands; drafts, backup validation and UI form checks are separate.
 replay, not an additive stored reward ledger. Every screen uses the committed
 progress snapshot.
 
+`AgendaProjection.replayDates(through)` selects creation, definition, membership,
+activation/archive and stored pending-request boundaries, every indexed occurrence
+date (including unfinished/exempt facts), and the requested horizon. It reuses the
+operation's occurrence index rather than rescanning stored occurrences. Replay visits
+each checkpoint and up to seven civil days **strictly after** it, clipped before the
+next checkpoint and to the original range. This includes the first date after an
+inclusive activation end and a weekly habit's first required day after optional
+creation. Pending due dates emerge from request/definition boundaries and these
+witnesses; collecting checkpoints never eagerly resolves a pending schedule.
+
+Between checkpoints, schedules, membership and activation are stable and there are
+no occurrence exceptions or completions. Seven closed witness days cover every
+weekday: unfinished requirements can only repeat an already-observed reset, and
+neutral days preserve state. Skipped interiors cannot award XP. The authoritative
+agenda, ordered daily reducer and finalization remain unchanged; Today is retained
+separately so an open commitment is never treated as a closed miss. With K distinct
+checkpoints, at most 8K dates are projected, independent of empty elapsed centuries.
+Each retained date still visits habits/pillars; dense histories and output/DOM costs
+are not constant-time. Unvalidated in-memory facts with malformed in-range date
+boundaries retain daily traversal, rather than adding an implicit validator.
+
+Progress's earlier-history and aggregate/pillar tracking-start searches share this
+bounded traversal but keep their own horizons, participation predicates and lazy
+short-circuiting. Active off-days and unchecked opportunities still participate;
+habit tracking start remains its original creation date. Selected-window calendars
+and full-history output are unchanged. All validation calls, including replacement
+preflight and synchronous in-transaction revalidation, still execute progress replay.
+No worker, asynchronous transaction boundary, persisted cache or schema is added.
+
 | Snapshot value | Contract |
 |---|---|
 | `habits[id]` | `{current, best, xp, nextBonus}` |

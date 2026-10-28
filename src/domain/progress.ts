@@ -1,5 +1,5 @@
 import { createAgendaProjection, pendingReactivationDate, summarize } from './agenda';
-import { civilDate, parseLocalDate } from './calendar';
+import { parseLocalDate } from './calendar';
 import type { AgendaSummary, CompatibleDataset, LocalDate } from './types';
 
 export interface StreakProgress {
@@ -97,13 +97,7 @@ export function calculateProgress(input: CompatibleDataset, today: LocalDate): P
   };
   const starts = Object.create(null) as Record<string, string>;
   const activations = Object.create(null) as Record<string, string>;
-  const firstDate = data.habits.map((h) => h.createdOn).sort()[0] ?? today;
-  const cursor = parseLocalDate(firstDate);
-  for (
-    let date = civilDate(cursor);
-    cursor <= lastDate;
-    cursor.setUTCDate(cursor.getUTCDate() + 1), date = civilDate(cursor)
-  ) {
+  for (const date of projection.replayDates(lastDate)) {
     const items = projection.agenda(date);
     for (const item of items) {
       const progress = result.habits[item.habit.id];

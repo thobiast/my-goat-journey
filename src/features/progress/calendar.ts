@@ -115,13 +115,9 @@ export function hasEarlierHistory(data: Dataset, scope: CalendarScope, start: Lo
   const lastDate = parseLocalDate(start);
   const first = data.habits.map((habit) => habit.createdOn).sort()[0];
   if (!first || first >= start) return false;
-  const cursor = parseLocalDate(first);
+  lastDate.setUTCDate(lastDate.getUTCDate() - 1);
   const projection = createAgendaProjection(data);
-  for (
-    let date = civilDate(cursor);
-    cursor < lastDate;
-    cursor.setUTCDate(cursor.getUTCDate() + 1), date = civilDate(cursor)
-  ) {
+  for (const date of projection.replayDates(lastDate)) {
     if (participates(data, scope, date, projection.agenda(date))) return true;
   }
   return false;

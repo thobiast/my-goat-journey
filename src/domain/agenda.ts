@@ -1,5 +1,6 @@
 import { civilDate, parseLocalDate, weekday } from './calendar';
 import { migrateDataset } from '../data/migrations';
+import { replayDates } from './replayDates';
 import type {
   ActivationPeriod,
   AgendaItem,
@@ -101,6 +102,13 @@ export function createAgendaProjection(input: CompatibleDataset) {
 
   return {
     data,
+    replayDates(through: Date): IterableIterator<LocalDate> {
+      // Reuse indexed date keys; do not scan stored occurrences a second time.
+      function* indexedDates() {
+        for (const dates of occurrences.values()) yield* dates.keys();
+      }
+      return replayDates(data, through, indexedDates());
+    },
     habit(habitId: string, date: LocalDate): AgendaItem | undefined {
       const habit = habits.get(habitId);
       return habit ? projectHabit(habit, date) : undefined;

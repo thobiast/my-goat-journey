@@ -64,13 +64,8 @@ export function trackingStart(data: Dataset, scope: CalendarScope): LocalDate | 
   // local days to expose its first pending reactivation opportunity.
   const limit = parseLocalDate(knownDates.sort().at(-1)!);
   limit.setUTCDate(limit.getUTCDate() + 7);
-  const cursor = parseLocalDate(first);
   const projection = createAgendaProjection(data);
-  for (
-    let date = civilDate(cursor);
-    cursor <= limit;
-    cursor.setUTCDate(cursor.getUTCDate() + 1), date = civilDate(cursor)
-  ) {
+  for (const date of projection.replayDates(limit)) {
     if (participates(data, scope, date, projection.agenda(date))) return date;
   }
   return undefined;
