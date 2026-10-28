@@ -491,6 +491,8 @@ export function App() {
     lifecycleRefresh = false,
   }: { peer?: boolean; review?: boolean; lifecycleRefresh?: boolean } = {}) {
     if (transitionLocked.current) return;
+    const observedEpoch = epoch.current;
+    const observedFeedback = feedbackVersion.current;
     ++operationActive.current;
     if (lifecycleRefresh) ++lifecycleActive.current;
     if (review) setBusy(true);
@@ -511,9 +513,13 @@ export function App() {
           }
           return repository.load(now);
         },
-        epoch.current,
+        observedEpoch,
         { lifecycleRefresh },
       );
+      // Running work may still be internally adopted, but only its current
+      // consumer may publish, invalidate sessions or recover view/route state.
+      if (observedEpoch !== epoch.current) return;
+      const ownsFeedback = observedFeedback === feedbackVersion.current;
       const needsRouteRecovery = acceptSnapshot(state, {
         kind: 'refresh-display',
         source: locallyReconciled ? 'local-reconciliation' : 'external',
@@ -544,13 +550,17 @@ export function App() {
       pillarHistoryReturn.current = valid(pillarHistoryReturn.current);
       returnRoute.current = valid(returnRoute.current);
       const interval = progressIntervalOrDefault(state.settings.progressInterval);
-      setProgressView((previous) =>
-        !state.onboardingComplete
-          ? initialProgressViewFor(state.settings)
-          : previous.interval === interval
-            ? previous
-            : { ...previous, interval, offset: 0 },
-      );
+      setProgressView((previous) => {
+        if (!state.onboardingComplete) return initialProgressViewFor(state.settings);
+        const next =
+          previous.interval === interval ? previous : { ...previous, interval, offset: 0 };
+        // Progress offers retained/removed pillars too; only a missing option
+        // loses its filter identity in the accepted external snapshot.
+        return next.pillarId === 'all' ||
+          state.pillars.some((pillar) => pillar.id === next.pillarId)
+          ? next
+          : { ...next, pillarId: 'all' };
+      });
       setRoute((previous) =>
         !state.onboardingComplete
           ? { screen: 'today' }
@@ -560,9 +570,14 @@ export function App() {
               ? { screen: 'pillars' }
               : valid(previous),
       );
-      if (peer && !review) setError('staleError');
+      if (peer && !review && ownsFeedback) setError('staleError');
     } catch {
-      if (peer || review) setError('saveError');
+      if (
+        observedEpoch === epoch.current &&
+        observedFeedback === feedbackVersion.current &&
+        (peer || review)
+      )
+        setError('saveError');
     } finally {
       --operationActive.current;
       if (lifecycleRefresh) --lifecycleActive.current;

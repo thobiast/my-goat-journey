@@ -259,6 +259,15 @@ restore/reset invalidate in their current success callback after publication and
 broadcast. Only refresh returns whether its caller should recover route/view state;
 navigation, feedback, focus and asynchronous guards stay with their existing owners.
 
+Refresh consumers capture their request epoch before enqueueing and recheck it
+after settlement, before publishing, invalidating personal state or recovering
+routes/views. Superseded successes and failures have no consumer side effects;
+the newest queued refresh remains eligible to read and publish. Failure feedback
+also requires the captured feedback version, and successful peer guidance cannot
+replace newer feedback. This is not transaction cancellation: already-running
+work may commit and be internally adopted by the queue; export still explicitly
+opts out of that adoption.
+
 The optional `revision?` arguments below are expected local revisions; replacement
 and reset require `expectedRevision`.
 
@@ -344,6 +353,12 @@ no stored interval preference. There are no reminder or theme settings.
 - Tabs, filters, arrows, day-detail navigation, dates, window offsets, statistics
   and derived calendar data remain in memory; only `Settings.progressInterval`
   persists as the interval preference.
+- Accepted external/review snapshots normalize a missing Progress pillar filter
+  to `all`, using the accepted snapshot's filter options. Retained pillars,
+  including removed historical pillars, remain valid options. Preserve compatible
+  tab, status, expansion and period/navigation state; interval recovery still
+  follows the accepted preference. Normalization does not write or advance a
+  revision, and obsolete refresh consumers cannot change the filter.
 - Backup parsing retains valid choices, normalizes an invalid present interval
   to `7d`, and leaves an absent preference absent. Replacement restores the
   candidate's preference; full reset clears it.
