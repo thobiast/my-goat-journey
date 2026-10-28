@@ -24,7 +24,7 @@ jobs:
         shell: bash
     steps:
       - name: Configure the already enabled Pages site
-        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5; verified upstream commit
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
         with:
           enablement: false
 
@@ -110,7 +110,7 @@ jobs:
     steps:
       - name: Deploy the validated Pages artifact
         id: deployment
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4; verified upstream commit
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
         with:
           artifact_name: github-pages
           preview: false
