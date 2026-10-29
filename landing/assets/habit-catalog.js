@@ -12,6 +12,10 @@ export const habitCatalog = [
   { id: 'organize-desk', pillar: 'mind', placement: 'additional' },
   { id: 'write-journal', pillar: 'mind', placement: 'additional' },
   { id: 'practice-guitar', pillar: 'mind', placement: 'additional' },
+  { id: 'make-bed', pillar: 'mind', placement: 'additional' },
+  { id: 'add-vegetables', pillar: 'nutrition', placement: 'additional' },
+  { id: 'prepare-snack', pillar: 'nutrition', placement: 'additional' },
+  { id: 'prepare-clothes', pillar: 'mind', placement: 'additional' },
 ];
 
 // The selected idea comes first, followed by these defaults, up to four visible habits.

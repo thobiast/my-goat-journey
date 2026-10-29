@@ -84,6 +84,34 @@ export const landingExamples = [
     en: ['Practice guitar', '15 minutes', 'Mon, Wed, Fri'],
     pt: ['Praticar violão', '15 minutos', 'Seg, Qua, Sex'],
   },
+  {
+    id: 'make-bed',
+    pillar: 'mind',
+    placement: 'additional',
+    en: ['Make your bed', 'After waking up', 'Every day'],
+    pt: ['Arrumar a cama', 'Ao levantar', 'Todos os dias'],
+  },
+  {
+    id: 'add-vegetables',
+    pillar: 'nutrition',
+    placement: 'additional',
+    en: ['Add vegetables to lunch', 'At lunchtime', 'Monday to Friday'],
+    pt: ['Adicionar vegetais ao almoço', 'No almoço', 'De segunda a sexta'],
+  },
+  {
+    id: 'prepare-snack',
+    pillar: 'nutrition',
+    placement: 'additional',
+    en: ['Prepare tomorrow’s snack', 'In the evening', 'Sunday to Thursday'],
+    pt: ['Preparar o lanche de amanhã', 'À noite', 'De domingo a quinta'],
+  },
+  {
+    id: 'prepare-clothes',
+    pillar: 'mind',
+    placement: 'additional',
+    en: ['Set out tomorrow’s clothes', 'Before bed', 'Sunday to Thursday'],
+    pt: ['Separar a roupa de amanhã', 'Antes de dormir', 'De domingo a quinta'],
+  },
 ];
 
 export const defaultLandingDemoIds = ['read-book', 'walk', 'eat-fruit', 'floss'];

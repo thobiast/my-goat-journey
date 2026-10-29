@@ -254,7 +254,7 @@ test('landing is responsive, local-only and does not access diary storage', asyn
     await expect(page.locator('script')).toHaveAttribute('src', 'assets/landing.js');
     await expect(page.locator('link[rel="manifest"]')).toHaveCount(0);
     await expect(page.locator('#initial-ideas button')).toHaveCount(4);
-    await expect(page.locator('#additional-ideas button')).toHaveCount(8);
+    await expect(page.locator('#additional-ideas button')).toHaveCount(12);
     expect(
       await page.evaluate(
         () =>

@@ -106,7 +106,7 @@ test('canonical pillar geometry is reused in every idea and both Today demonstra
   }
 
   await page.goto('./');
-  await expect(page.locator('.idea')).toHaveCount(12);
+  await expect(page.locator('.idea')).toHaveCount(16);
   for (const kind of ['mind', 'body', 'nutrition', 'hygiene']) {
     const item = page.locator(`#pillars [data-pillar="${kind}"]`);
     expect(
@@ -209,7 +209,7 @@ test('pillars introduce life areas before the tour and all four initial ideas', 
         : ['Todos os dias', 'Seg, Qua, Sex', 'Todos os dias', 'Todos os dias'],
     );
     const names = await page.locator('.idea strong').allTextContents();
-    expect(new Set(names).size).toBe(12);
+    expect(new Set(names).size).toBe(16);
     await expect(page.locator('[data-idea="practice-english"] strong')).toHaveText(
       english ? 'Practice English' : 'Praticar inglês',
     );
@@ -788,12 +788,13 @@ test('tour exposes localized calendar details and bounded level states without l
   await expect(page.locator('#hero-demo .xp-badge')).toHaveText('70 XP');
 });
 
-test('twelve illustrative choices update an isolated checklist with coherent XP and preserved language state', async ({
+test('sixteen illustrative choices update an isolated checklist with coherent XP and preserved language state', async ({
   page,
 }) => {
   await page.goto('./');
   await expect(page.locator('#initial-ideas button')).toHaveCount(4);
-  await expect(page.locator('#additional-ideas button')).toHaveCount(8);
+  await expect(page.locator('#additional-ideas button')).toHaveCount(12);
+  await expect(page.locator('#more-ideas summary')).toHaveText('12 more ideas to inspire you');
   await expect(page.locator('#more-ideas')).not.toHaveAttribute('open');
   const hero = page.locator('#hero-demo');
   await expect(hero.getByRole('checkbox')).toHaveCount(4);
@@ -804,6 +805,7 @@ test('twelve illustrative choices update an isolated checklist with coherent XP 
   await expect(page.locator('#journey-strip')).toContainText('30 XP to the next level');
   await chooseLanguage(page, 'pt-BR');
   await expect(hero.getByRole('checkbox').first()).toBeChecked();
+  await expect(page.locator('#more-ideas summary')).toHaveText('Mais 12 ideias para se inspirar');
   await page.locator('#more-ideas summary').click();
   for (const locale of ['en', 'pt-BR']) {
     await chooseLanguage(page, locale);
@@ -1042,3 +1044,87 @@ test('English first visit ignores browser language; explicit Portuguese selectio
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await expect(page).toHaveTitle('My GOAT Journey — Small habits. A greater you.');
 });
+
+for (const id of ['make-bed', 'add-vegetables', 'prepare-snack', 'prepare-clothes']) {
+  test(`new idea ${id} preserves selection and completion through language changes`, async ({
+    page,
+  }) => {
+    const example = landingExamples.find((entry) => entry.id === id)!;
+    await page.goto('./');
+    await page.locator('#more-ideas summary').click();
+    await page.locator(`[data-idea="${id}"]`).click();
+    await page.locator('[data-view="today"]').click();
+    const check = page.locator(`#hero-demo [data-habit="${id}"] input`);
+    await check.check();
+    for (const [locale, key] of [
+      ['pt-BR', 'pt'],
+      ['en', 'en'],
+    ] as const) {
+      await chooseLanguage(page, locale);
+      await expect(page.locator(`[data-idea="${id}"]`)).toHaveAttribute('aria-pressed', 'true');
+      for (const demo of ['#hero-demo', '#tour-today']) {
+        const row = page.locator(`${demo} [data-pillar="${example.pillar}"] [data-habit="${id}"]`);
+        await expect(row.locator('.habit-name')).toHaveText(example[key][0]);
+        await expect(row.getByRole('checkbox')).toBeChecked();
+        await expect(page.locator(`${demo} input`)).toHaveCount(4);
+        await expect(page.locator(`${demo} .xp-badge`)).toHaveText('70 XP');
+      }
+    }
+    await check.uncheck();
+    await expect(page.locator('#tour-today .xp-badge')).toHaveText('60 XP');
+    await expect(page.locator(`#tour-today [data-habit="${id}"] input`)).not.toBeChecked();
+    await page.reload();
+    await expect(page.locator('[data-idea="read-book"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#hero-demo .xp-badge')).toHaveText('60 XP');
+  });
+}
+
+for (const width of [320, 390, 768, 1440]) {
+  test(`GitHub header link is localized and keyboard accessible at ${width}px`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto('./');
+    const link = page.locator(
+      '.header-actions a[href="https://github.com/thobiast/my-goat-journey"]',
+    );
+    await expect(link).toHaveCount(1);
+    await expect(page.locator('a[href="https://github.com/thobiast/my-goat-journey"]')).toHaveCount(
+      1,
+    );
+    await expect(link.locator('svg')).toHaveAttribute('aria-hidden', 'true');
+    for (const locale of ['en', 'pt-BR']) {
+      await chooseLanguage(page, locale);
+      await expect(link).toHaveAccessibleName(
+        locale === 'en' ? 'View the project on GitHub' : 'Ver o projeto no GitHub',
+      );
+      await page.getByRole('button', { name: 'Português', exact: true }).focus();
+      await page.keyboard.press('Tab');
+      await expect(link).toBeFocused();
+      expect(await link.evaluate((node) => getComputedStyle(node).outlineStyle)).not.toBe('none');
+      const box = (await link.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      if (width > 400) await expect(link.locator('span')).toBeVisible();
+      else await expect(link.locator('span')).toBeHidden();
+      await expect(page.locator('.header-actions a[href="app/"]')).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      await page
+        .locator('.masthead')
+        .screenshot({ path: testInfo.outputPath(`${locale}-${width}-header.png`) });
+    }
+    // Exercise the ordinary anchor without contacting a third-party server.
+    await page.route('https://github.com/thobiast/my-goat-journey', (route) =>
+      route.fulfill({
+        contentType: 'text/html',
+        body: '<title>GitHub destination fixture</title>',
+      }),
+    );
+    await link.focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL('https://github.com/thobiast/my-goat-journey');
+    await expect(page).toHaveTitle('GitHub destination fixture');
+  });
+}

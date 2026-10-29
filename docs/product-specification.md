@@ -77,7 +77,7 @@ falls back to English. This preference never reads or changes application settin
 or diary records. Language changes update the document language, title, description,
 copy and accessible names without resetting demonstration state or moving focus.
 
-The landing shows four habit ideas and eight more in a collapsed native disclosure.
+The landing shows four habit ideas and twelve more in a collapsed native disclosure.
 They are illustrative choices, not preselected real habits. Selecting one changes
 the isolated Today example. Checklist, completion counts and journey XP agree;
 fictional interactions stay in memory and reset on reload. The Today and Journey
@@ -92,6 +92,8 @@ The landing explains no-account use, device-local records, user-controlled backu
 exports, confirmed replacement restore, local-data loss risks and production offline
 preparation. All application actions use the deployment-aware relative `app/`
 entry. The shared publication artifact and app-only worker boundary remain unchanged.
+The header includes a secondary GitHub repository link beside the language controls,
+with a localized accessible name and an icon-only treatment on narrow screens.
 The footer links only to the bilingual `licenses.html` page; project/original-asset
 licensing explanations live there, with exact official license/notices text and
 direct links to the canonical distributed files. Navigation and explanatory labels

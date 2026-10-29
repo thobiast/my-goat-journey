@@ -38,6 +38,14 @@ h2 { font-size: clamp(2rem, 3.3vw, 3.2rem); line-height: 1.15; letter-spacing: -
 .masthead nav { display: flex; flex-wrap: wrap; gap: 12px 28px; margin-left: auto; }
 .masthead nav a { min-height: 44px; display: flex; align-items: center; text-decoration: none; font-size: .875rem; }
 .header-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 22px; }
+.github-link { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-width: 44px; min-height: 44px; padding: 9px 11px; border: 1px solid var(--rule); border-radius: 7px; color: var(--muted); font-size: .8125rem; font-weight: 600; text-decoration: none; }
+.github-link:hover { color: var(--green); border-color: var(--green); background: #eaf0e5; }
+.github-link svg { flex-shrink: 0; }
+@media (max-width: 400px) {
+  .header-actions { gap: 8px; }
+  .github-link { padding: 9px; }
+  .github-link span { display: none; }
+}
 .language { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--rule); border-radius: 7px; }
 .language button { min-width: 44px; min-height: 44px; padding: 8px; border: 1px solid transparent; border-radius: 4px; color: var(--muted); background: transparent; font-size: .75rem; font-weight: 650; }
 .language button[aria-pressed=true] { color: var(--surface); background: var(--green); }
@@ -212,6 +220,7 @@ footer a { display: inline-flex; align-items: center; min-height: 44px; }
 }
 @media (max-width: 360px) {
   .page { padding: 0 18px; }
+  .header-actions { gap: 8px; }
   .idea-grid { grid-template-columns: minmax(0, 1fr); }
   .idea { min-height: 63px; }
   .idea .goal, .idea .frequency { display: inline; }

@@ -10,7 +10,7 @@ test('landing catalog owns unique stable identities, explicit pillars and idea p
   expect(habitCatalog).toEqual(
     landingExamples.map(({ id, pillar, placement }) => ({ id, pillar, placement })),
   );
-  expect(new Set(habitCatalog.map((entry: { id: string }) => entry.id)).size).toBe(12);
+  expect(new Set(habitCatalog.map((entry: { id: string }) => entry.id)).size).toBe(16);
   for (const entry of habitCatalog) {
     expect(entry.id).toMatch(/^[a-z]+(?:-[a-z]+)*$/);
     expect(['mind', 'body', 'nutrition', 'hygiene']).toContain(entry.pillar);
@@ -20,7 +20,7 @@ test('landing catalog owns unique stable identities, explicit pillars and idea p
   ).toHaveLength(4);
   expect(
     habitCatalog.filter((entry: { placement: string }) => entry.placement === 'additional'),
-  ).toHaveLength(8);
+  ).toHaveLength(12);
   expect(defaultDemoIds).toEqual(defaultLandingDemoIds);
 });
 

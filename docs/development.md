@@ -555,7 +555,7 @@ directory before ordinary regression runs, which need no baseline.
 
 `landing/index.html` and `landing/assets/field-notes.css` own the editorial page.
 The small native ES modules in the same assets directory are copied unchanged by
-the existing assembly: `habit-catalog.js` owns the twelve stable example IDs,
+the existing assembly: `habit-catalog.js` owns the sixteen stable example IDs,
 explicit pillars, initial/additional placement and ID-based demonstration defaults;
 `translations.js` holds paired EN/pt-BR copy with example text keyed by those IDs;
 `language.js` shares the landing-only preference, labels and metadata;
