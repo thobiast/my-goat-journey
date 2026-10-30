@@ -249,9 +249,12 @@ test('landing is responsive, local-only and does not access diary storage', asyn
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
-    expect(await page.locator('script').count()).toBe(1);
-    await expect(page.locator('script')).toHaveAttribute('type', 'module');
-    await expect(page.locator('script')).toHaveAttribute('src', 'assets/landing.js');
+    expect(await page.locator('script').count()).toBe(2);
+    await expect(page.locator('script[type="module"]')).toHaveAttribute('src', 'assets/landing.js');
+    const appearance = page.locator('script:not([type])');
+    await expect(appearance).toHaveAttribute('src', 'assets/appearance.js');
+    await expect(appearance).not.toHaveAttribute('async');
+    await expect(appearance).not.toHaveAttribute('defer');
     await expect(page.locator('link[rel="manifest"]')).toHaveCount(0);
     await expect(page.locator('#initial-ideas button')).toHaveCount(4);
     await expect(page.locator('#additional-ideas button')).toHaveCount(12);
@@ -280,6 +283,7 @@ test('landing is responsive, local-only and does not access diary storage', asyn
       'habit-catalog.js',
       'tour.js',
       'installation.js',
+      'appearance.js',
     ]
       .map((name) => `${landingPath}assets/${name}`)
       .sort(),

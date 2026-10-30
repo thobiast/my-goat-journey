@@ -4,7 +4,7 @@ import { resolveSite } from './config/site.mjs';
 const site = resolveSite();
 export default defineConfig({
   testDir: './e2e',
-  testMatch: ['landing.spec.ts', 'landing-licenses.spec.ts'],
+  testMatch: ['landing.spec.ts', 'landing-licenses.spec.ts', 'landing-appearance.spec.ts'],
   workers: 1,
   timeout: 30000,
   reporter: [['list']],

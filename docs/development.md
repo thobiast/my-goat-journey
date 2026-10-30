@@ -554,20 +554,24 @@ directory before ordinary regression runs, which need no baseline.
 ## Landing page maintenance and checks
 
 `landing/index.html` and `landing/assets/field-notes.css` own the editorial page.
-The small native ES modules in the same assets directory are copied unchanged by
-the existing assembly: `habit-catalog.js` owns the sixteen stable example IDs,
+The main page loads seven small native ES modules, copied unchanged from the assets
+directory by the existing assembly: `habit-catalog.js` owns the sixteen stable example IDs,
 explicit pillars, initial/additional placement and ID-based demonstration defaults;
 `translations.js` holds paired EN/pt-BR copy with example text keyed by those IDs;
 `language.js` shares the landing-only preference, labels and metadata;
-`landing.js` initializes demonstrations; `licenses.js` loads only canonical legal texts;
+`landing.js` initializes demonstrations; `installation.js` owns the platform tabs;
 `demonstrations.js` owns the in-memory checklist/XP; `tour.js` owns tour selection,
-calendar details and the bounded level example. No extra framework, dependency,
+calendar details and the bounded level example. A separate classic `appearance.js`
+loads synchronously in the landing head before CSS, resolving presentation before
+paint and wiring the native theme buttons after DOM readiness. This makes eight
+JavaScript URLs, not eight ES modules. No extra framework, dependency,
 font request, build or pathname router is involved. `landing/licenses.html` is the
 only additional root HTML page admitted by the publication allowlist and development
 middleware. Other unreviewed HTML remains rejected.
 
 The footer has one localized Licenses / Licenças link to `licenses.html`. The legal
-page shares EN/PT controls and explains project/original-asset licensing from the
+page's separate `licenses.js` module loads only canonical legal texts; the page
+shares EN/PT controls and explains project/original-asset licensing from the
 README and branding documentation. Its native disclosures load the unchanged
 `app/LICENSE` and `app/third-party-notices.txt` as plain text, retaining direct links
 when JavaScript is unavailable or inline loading fails. Do not hand-copy, translate
@@ -575,10 +579,21 @@ or relicense the official texts, and never import the real app to display them.
 The concise demo caption appears once under the hero and once under the tour.
 
 The header uses adjacent native EN/PT buttons with stable accessible names English
-and Português, `aria-pressed`, and 44px touch targets. The only persistent landing
-preference is `my-goat-journey.landing.language`.
-Do not reuse app settings keys, consult browser language on first visit, open
-IndexedDB, register a worker, or join application channels from these modules.
+and Português, `aria-pressed`, and 44px touch targets. Landing language persists only
+under `my-goat-journey.landing.language`, independently of app language. Adjacent
+sun/moon buttons are named Light theme / Dark theme (Tema claro / Tema escuro),
+have 44px targets and expose the resolved theme through `aria-pressed`.
+The only shared preference is the existing browser-local presentation key
+`my-goat-journey:appearance:<appBase>`; `appearance.js` derives `appBase` from
+`new URL('../app/', document.currentScript.src).pathname`, including root and
+nested site prefixes. Absent/invalid/inaccessible storage follows live OS appearance
+without an initial write; explicit choices persist even when already resolved.
+Failed writes retain the choice for this page session. Relevant localStorage peer
+events synchronize choices; removal, clear or System resumes OS following, including
+System selected in app Settings. Other keys/bases and sessionStorage events are ignored.
+This narrow presentation exception permits no other app setting or diary access.
+Do not consult browser language on first visit, open IndexedDB, register a worker,
+or join application channels. `licenses.html` remains light-only without theme controls.
 Translate controls and metadata as well as visible prose, and keep existing DOM
 controls during locale changes to preserve focus and interaction state.
 
@@ -612,8 +627,9 @@ landing browser suite also reorders catalog and translation keys independently
 using test-only module responses, then exercises the unchanged renderer.
 
 The ordinary formatting, ESLint and TypeScript checks do not validate native
-landing JavaScript. Catalog unit tests, focused browser tests and publication
-capture exercise these modules; review their source and use containerized
+landing JavaScript. Catalog unit tests and `tests/landing/appearance.test.ts` (the
+actual classic script in a Node VM), focused browser tests and publication capture
+exercise these scripts; review their source and use containerized
 `node --check` for syntax validation as well.
 
 Run through the established wrapper, serially with other project checks:
@@ -635,8 +651,10 @@ BASE_URL=http://my-goat-journey-runtime:8080 \
 The landing matrix covers both locales at 320/375/390/430/768/1440 CSS pixels and
 100%/200% root text, including each tour view. It checks language fallback,
 selection persistence, checklist/XP consistency, native keyboard operation,
-feedback expiry, reduced motion, FAQ and actual app navigation. Storage spies
-reject diary/channel/worker access. Compiled publication cases additionally use
+feedback expiry, reduced motion, FAQ and actual app navigation. The dedicated
+`e2e/landing-appearance.spec.ts`, selected by the same landing config, covers early
+appearance, native localized controls and shared browser-presentation behavior.
+Storage spies reject diary/channel/worker access. Compiled publication cases additionally use
 secure loopback contexts to verify app worker scope, exact fictional diary
 preservation, fresh offline reopening and targeted legacy-fixture retirement.
 The full ordinary unit suite retains alternate-prefix assembly/hash/version
@@ -644,8 +662,9 @@ stability checks. Use the same `SITE_PREFIX` across each alternate-prefix run;
 restore default development/runtime configuration afterward.
 
 The opt-in screenshot suite `e2e/publication-captures.spec.ts` includes a landing
-check permitting exactly seven module URLs total: the entry module and six imported
-modules, with byte-identical HTML, local assets, no manifest and zero
+check permitting exactly eight JavaScript URLs total: seven native module URLs
+(the entry module and six imported modules) plus the classic `appearance.js`,
+with byte-identical HTML, local assets, no manifest and zero
 diary/channel/worker registration checks. Its source-preview server supplies
 JavaScript MIME types.
 It requires explicit `PUBLICATION_CAPTURE=1`; the wrapper does not forward
@@ -676,13 +695,15 @@ physical-iPhone, Safari, hosted CI or GitHub Pages validation.
 
 ## Focused appearance verification
 
-Appearance is an app/base-scoped browser preference, not a diary setting; see
+Appearance is an app/base-scoped browser preference shared narrowly with the landing,
+not a diary setting; see
 [device appearance](interfaces.md#device-appearance). Use isolated fictional diaries
 and retain captures through `testInfo.outputPath()`, never maintained screenshots.
 
 ```sh
-sh scripts/containers.sh tool npm run test -- tests/ui/appearance.test.ts
+sh scripts/containers.sh tool npm run test -- tests/ui/appearance.test.ts tests/landing/appearance.test.ts
 sh scripts/containers.sh e2e e2e/appearance.spec.ts
+sh scripts/containers.sh e2e --config playwright.landing.config.ts e2e/landing-appearance.spec.ts
 ```
 
 The ordinary browser file uses the development module boundary to verify early

@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { mkdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { landingExamples, defaultLandingDemoIds } from '../tests/fixtures/landing-catalog';
+import { resolveSite } from '../config/site.mjs';
 
 async function chooseLanguage(page: Page, language: string) {
   await page
@@ -351,7 +352,11 @@ for (const mode of ['invalid', 'blocked'] as const) {
     await page.locator('#install-tab-android').click();
     expect(
       await page.evaluate(() => (window as unknown as { landingCalls: string[] }).landingCalls),
-    ).toEqual(['read:my-goat-journey.landing.language', 'write:my-goat-journey.landing.language']);
+    ).toEqual([
+      `read:my-goat-journey:appearance:${resolveSite().appBase}`,
+      'read:my-goat-journey.landing.language',
+      'write:my-goat-journey.landing.language',
+    ]);
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   });
@@ -1099,6 +1104,10 @@ for (const width of [320, 390, 768, 1440]) {
         locale === 'en' ? 'View the project on GitHub' : 'Ver o projeto no GitHub',
       );
       await page.getByRole('button', { name: 'Português', exact: true }).focus();
+      await page.keyboard.press('Tab');
+      await expect(page.locator('[data-appearance-choice="light"]')).toBeFocused();
+      await page.keyboard.press('Tab');
+      await expect(page.locator('[data-appearance-choice="dark"]')).toBeFocused();
       await page.keyboard.press('Tab');
       await expect(link).toBeFocused();
       expect(await link.evaluate((node) => getComputedStyle(node).outlineStyle)).not.toBe('none');

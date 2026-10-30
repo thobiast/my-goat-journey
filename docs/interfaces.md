@@ -413,9 +413,11 @@ Settings exposes native, mutually exclusive **System / Light / Dark** radios
 (**Sistema / Claro / Escuro**) near language. Selection applies immediately with
 no Save action, keeps focus and respects the existing busy/inert controls.
 System is the default for absent/invalid values and follows live OS changes;
-explicit choices override them. The app-only dark palette is Graphite, through
+explicit choices override them. The app's dark palette is Graphite, through
 shared semantic CSS tokens; light styling and application geometry are retained.
-The selected segment has a persistent internal border with at least 3:1 contrast
+The landing also provides Graphite through its own presentation tokens, without
+importing application code or changing the app palette or geometry.
+The app's selected segment has a persistent internal border with at least 3:1 contrast
 against both adjacent surfaces, distinct from the external keyboard-focus outline.
 Forced colors retains a system-color selection border and dashed focus outline.
 
@@ -423,9 +425,9 @@ Appearance belongs to browser-local presentation, under
 `my-goat-journey:appearance:<appBase>` in localStorage, not `Dataset.settings`.
 It never calls Repository, changes a revision, writes diary facts, replaces a
 dataset or invalidates drafts. Same-origin storage events synchronize this key
-between app windows without a dataset broadcast. Import, restore and full diary
-reset leave it alone. Storage read failures default to System; failed writes keep
-the session selection. OS/storage listeners are detached when the final UI
+between app and landing windows without a dataset broadcast. Import, restore and
+full diary reset leave it alone. Storage read failures default to System; failed writes keep
+the session selection. The app's OS/storage listeners are detached when the final UI
 subscriber unmounts.
 
 An app-head inline initializer resolves the preference before CSS/module paint,
@@ -437,8 +439,24 @@ then removes the temporary listener, including across a delayed module handoff.
 Its base URL resolves correctly in development's relative HTML and compiled builds.
 The initializer is included in signed HTML and offline shell integrity; no new
 remote resource, CSP relaxation or worker protocol is needed. Manifest identity
-and its static launch fallback colors remain unchanged. Landing has no appearance
-control or app-theme initialization.
+and its static launch fallback colors remain unchanged.
+
+The landing's independent classic `landing/assets/appearance.js` executes
+synchronously in the head before CSS, not through app modules. It derives the exact
+existing key suffix with `new URL('../app/', document.currentScript.src).pathname`
+and resolves root `data-appearance-preference`, `data-appearance`, native color
+scheme, background and theme color before paint. After DOM readiness, native
+sun/moon buttons select Light theme / Dark theme (Tema claro / Tema escuro), with
+44px targets and `aria-pressed` reflecting the resolved theme. There is no landing
+System control: missing, invalid or unreadable storage follows live OS appearance;
+either button makes an explicit choice, even when that theme is already resolved.
+No initial resolution, media change or peer event writes storage. Failed writes
+retain the page-session choice. Relevant localStorage events adopt explicit choices;
+removal, clear or System restores OS following, including System selected in app
+Settings. Other keys, other app bases and sessionStorage events have no effect.
+This existing presentation key is the only app-shared storage exception; the landing
+never reads diary settings, opens IndexedDB, joins application channels or registers
+a worker. `licenses.html` remains light-only and has no appearance controls.
 
 
 ## Backup and replacement restore
@@ -578,7 +596,9 @@ Reordering catalog entries or translation keys must not change those association
 The four-visible-habit limit is deliberate: selected example first, then named
 defaults without duplication. Initial selection is `read-book`; `eat-fruit` starts
 completed. These native modules remain independent of React, domain, diary and
-PWA modules; only the separate landing language preference persists.
+PWA modules. Demonstration state never persists. The separate landing language
+preference and the narrowly shared browser appearance key described above are the
+only persistent landing preferences.
 
 ### Headings, layout and focus
 

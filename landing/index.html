@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#f8f6ef">
   <meta name="description" content="Build meaningful habits across different areas of life. Track your consistency and follow your journey up the mountain. No account required.">
   <title>My GOAT Journey — Small habits. A greater you.</title>
+  <script src="assets/appearance.js"></script>
   <link rel="stylesheet" href="assets/field-notes.css">
   <script type="module" src="assets/landing.js"></script>
 </head>
@@ -23,9 +24,21 @@
         <a href="#privacy" data-i18n="privacyNav">Privacy</a>
       </nav>
       <div class="header-actions">
-        <div class="language" role="group" aria-label="Language" data-label="language">
-          <button type="button" data-language="en" aria-label="English" aria-pressed="true">EN</button>
-          <button type="button" data-language="pt-BR" aria-label="Português" aria-pressed="false">PT</button>
+        <div class="header-preferences">
+          <div class="language" role="group" aria-label="Language" data-label="language">
+            <button type="button" data-language="en" aria-label="English" aria-pressed="true">EN</button>
+            <button type="button" data-language="pt-BR" aria-label="Português" aria-pressed="false">PT</button>
+          </div>
+          <div class="appearance" role="group" aria-label="Appearance" data-label="appearance">
+            <button type="button" data-appearance-choice="light" aria-label="Light theme" data-label="themeLight" aria-pressed="false">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/></svg>
+              <span class="theme-label" data-i18n="themeLight" aria-hidden="true">Light theme</span>
+            </button>
+            <button type="button" data-appearance-choice="dark" aria-label="Dark theme" data-label="themeDark" aria-pressed="false">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.5 14.2A8.7 8.7 0 0 1 9.8 3.5 8.7 8.7 0 1 0 20.5 14.2Z"/></svg>
+              <span class="theme-label" data-i18n="themeDark" aria-hidden="true">Dark theme</span>
+            </button>
+          </div>
         </div>
         <a class="github-link" href="https://github.com/thobiast/my-goat-journey" aria-label="View the project on GitHub" data-label="github">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.86c-2.78.6-3.37-1.18-3.37-1.18-.45-1.15-1.11-1.46-1.11-1.46-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.64-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.03a9.58 9.58 0 0 1 5 0c1.91-1.3 2.75-1.03 2.75-1.03.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>

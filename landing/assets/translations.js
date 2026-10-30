@@ -1,6 +1,7 @@
 // Static-page copy only. No application preferences or user-authored content.
 export const copy = {
   en: {
+    appearance: 'Appearance', themeLight: 'Light theme', themeDark: 'Dark theme',
     title: 'My GOAT Journey — Small habits. A greater you.',
     description: 'Build meaningful habits across different areas of life. Track your consistency and follow your journey up the mountain. No account required.',
     skip: 'Skip to content', navigation: 'Main navigation', language: 'Language', github: 'View the project on GitHub', tourNav: 'Product tour', privacyNav: 'Privacy', open: 'Open the app',
@@ -87,6 +88,7 @@ export const copy = {
     },
   },
   'pt-BR': {
+    appearance: 'Aparência', themeLight: 'Tema claro', themeDark: 'Tema escuro',
     title: 'My GOAT Journey — Pequenos hábitos. Uma versão melhor de você.',
     description: 'Crie hábitos em diferentes áreas da vida. Acompanhe sua constância e avance na sua jornada pela montanha. Sem necessidade de conta.',
     skip: 'Pular para o conteúdo', navigation: 'Navegação principal', language: 'Idioma', github: 'Ver o projeto no GitHub', tourNav: 'Conheça o app', privacyNav: 'Privacidade', open: 'Abrir o app',

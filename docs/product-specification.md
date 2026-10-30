@@ -77,6 +77,20 @@ falls back to English. This preference never reads or changes application settin
 or diary records. Language changes update the document language, title, description,
 copy and accessible names without resetting demonstration state or moving focus.
 
+The landing also supports Light and Graphite Dark appearance with visible native
+sun/moon buttons named Light theme / Dark theme (Tema claro / Tema escuro), 44px
+targets and `aria-pressed` reflecting the resolved theme. Its synchronous local
+head script resolves appearance before CSS. It shares only the existing browser-local
+`my-goat-journey:appearance:<appBase>` presentation key with the corresponding app
+base, including root and nested deployment prefixes. This is not a diary setting
+or permission to read app language, IndexedDB, channels or worker state.
+Absent, invalid or inaccessible storage follows live OS appearance without writing;
+either button stores an explicit choice even if already resolved. Failed persistence
+keeps the choice for the current page session. Relevant localStorage events
+synchronize appearance; removal, clear or System selected in app Settings restores
+OS following. Other keys/bases and sessionStorage events do not affect it.
+The bilingual `licenses.html` remains light-only without appearance controls.
+
 The landing shows four habit ideas and twelve more in a collapsed native disclosure.
 They are illustrative choices, not preselected real habits. Selecting one changes
 the isolated Today example. Checklist, completion counts and journey XP agree;
@@ -955,9 +969,10 @@ does not authorize implementation.
 - Reminders/notifications and a separate delivery API are future work. Hosting,
   TLS, endpoint protection, delivery scheduling and timezone refresh need design and
   operational verification; exact-minute or completion-based suppression is not promised.
-- Accounts, synchronization and analytics are not implemented. App-only appearance
-  supports System, Light and Graphite Dark as a device presentation preference,
-  separate from diary facts and backups; see [Interfaces](interfaces.md#device-appearance).
+- Accounts, synchronization and analytics are not implemented. App Settings supports
+  System, Light and Graphite Dark as a device presentation preference; the landing
+  shares only this preference through Light/Dark controls, not diary facts or backups.
+  See [Interfaces](interfaces.md#device-appearance).
 - The name has no claimed availability/trademark review. Project-owned code,
   documentation and original assets (including supplied logos and derived icons)
   use [Apache-2.0](../LICENSE), to the extent of available rights. Preserve

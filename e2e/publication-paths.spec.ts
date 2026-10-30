@@ -32,11 +32,9 @@ const test = base.extend<{ publication: Publication }>({
       configured.hostname === 'my-goat-journey-dev' || configured.port === '5173'
         ? 'development'
         : 'production';
-    const upstream = new URL(
-      mode === 'development'
-        ? 'http://my-goat-journey-dev:5173'
-        : 'http://my-goat-journey-runtime:8080',
-    );
+    // Honor the selected server so fresh task-owned compiled fixtures do not
+    // silently exercise the normal runtime's older artifact.
+    const upstream = new URL(configured.origin);
     const sockets = new Set<Duplex>();
     let networkAvailable = true;
     const legacyWorker = `
