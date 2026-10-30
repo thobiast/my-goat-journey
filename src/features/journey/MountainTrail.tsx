@@ -15,8 +15,8 @@ const signs = [
 function Pine({ x, y, scale = 1 }: { x: number; y: number; scale?: number }) {
   return (
     <g transform={`translate(${x} ${y}) scale(${scale})`}>
-      <path d="M0 5v24" stroke="#526e48" strokeWidth="2" />
-      <path d="M0-12l-7 12h4l-8 11h5l-8 11h28l-8-11h5L3 0h4z" fill="#58784e" />
+      <path d="M0 5v24" stroke="var(--trail-tree-trunk)" strokeWidth="2" />
+      <path d="M0-12l-7 12h4l-8 11h5l-8 11h28l-8-11h5L3 0h4z" fill="var(--trail-tree-foliage)" />
     </g>
   );
 }
@@ -24,19 +24,28 @@ function Pine({ x, y, scale = 1 }: { x: number; y: number; scale?: number }) {
 function Landscape() {
   return (
     <>
-      <rect width="400" height="480" fill="#F0F2E4" />
-      <circle cx="321" cy="62" r="27" fill="#e7dbb5" opacity=".65" />
-      <path d="M-25 187L65 83l55 57 93-109 80 110 56-55 76 112v282H-25z" fill="#DEE4CC" />
+      <rect width="400" height="480" fill="var(--trail-map-fill)" />
+      <circle cx="321" cy="62" r="27" fill="var(--trail-sun)" opacity=".65" />
+      <path
+        d="M-25 187L65 83l55 57 93-109 80 110 56-55 76 112v282H-25z"
+        fill="var(--trail-mountain-far)"
+      />
       <path
         d="M172 79l41-48 37 51-24-10-14 8-15-13zM40 112l25-29 26 27-20-7-7 7-10-7z"
-        fill="#FFFDF8"
+        fill="var(--trail-snow)"
         opacity=".85"
       />
-      <path d="M-25 234L49 170l65 30L247 106l93 104 85-44v314H-25z" fill="#C4D0B0" />
-      <path d="M-25 322Q51 174 142 247t140-9q75-54 143 44v198H-25z" fill="#A4B78C" />
-      <path d="M-25 403Q67 255 147 333t161 23q84-40 117-15v139H-25z" fill="#7F9D6C" />
-      <path d="M-25 461Q72 370 163 407t134 13q71-34 128-10v70H-25z" fill="#6f9062" />
-      <g fill="none" stroke="#536b48" strokeWidth="1" opacity=".18">
+      <path
+        d="M-25 234L49 170l65 30L247 106l93 104 85-44v314H-25z"
+        fill="var(--trail-mountain-near)"
+      />
+      <path d="M-25 322Q51 174 142 247t140-9q75-54 143 44v198H-25z" fill="var(--trail-hill-far)" />
+      <path
+        d="M-25 403Q67 255 147 333t161 23q84-40 117-15v139H-25z"
+        fill="var(--trail-hill-middle)"
+      />
+      <path d="M-25 461Q72 370 163 407t134 13q71-34 128-10v70H-25z" fill="var(--trail-hill-near)" />
+      <g fill="none" stroke="var(--trail-contour)" strokeWidth="1" opacity=".18">
         <path d="M-5 305q64-101 129-56M6 319q67-83 129-52M264 286q81-44 138 14M258 302q87-36 151 18M-1 413q78-100 142-39M244 438q96-49 159-10" />
       </g>
       <g opacity=".72">
@@ -119,7 +128,7 @@ export function MountainTrail({
             <g key={segment.d}>
               <path
                 d={segment.d}
-                stroke="#FFFDF8"
+                stroke="var(--trail-path-casing)"
                 strokeWidth="13"
                 fill="none"
                 strokeLinecap="round"
@@ -132,7 +141,7 @@ export function MountainTrail({
                 className="trail-segment"
                 d={segment.d}
                 pathLength="1"
-                stroke="#D8C9A8"
+                stroke="var(--trail-path-upcoming)"
                 strokeWidth="8"
                 fill="none"
                 strokeLinecap="round"
@@ -142,7 +151,7 @@ export function MountainTrail({
                   className="traveled-segment"
                   d={segment.d}
                   pathLength="1"
-                  stroke="#205D45"
+                  stroke="var(--trail-green)"
                   strokeWidth="8"
                   fill="none"
                   strokeLinecap="round"
@@ -159,7 +168,7 @@ export function MountainTrail({
               className="trail-connector"
               key={index}
               d={`M${sign.x * 4} ${sign.y * 4.8}L${waypoint.x} ${waypoint.y}`}
-              stroke="#52604D"
+              stroke="var(--trail-muted)"
               strokeWidth="1"
               opacity=".5"
             />

@@ -1,4 +1,4 @@
-/* Field Notes palette is scoped to Today; other destinations retain their tokens. */
+/* Today consumes shared semantic roles; light Field Notes shades remain unchanged. */
 body:has(.today-page) { background: var(--field-page); }
 .today-page {
   --surface: var(--field-card);
@@ -58,13 +58,13 @@ body:has(.today-page) { background: var(--field-page); }
   justify-content: space-between;
   gap: 6px 12px;
   padding: 8px 12px;
-  background: var(--pillar-accent);
-  color: var(--pillar-foreground);
+  background: var(--pillar-header-background);
+  color: var(--today-pillar-foreground, var(--pillar-foreground));
   border: 0;
 }
 .today-page .today-pillar .pillar-title { flex: 1 1 auto; min-width: 0; max-width: 100%; gap: 8px; }
 /* A light translucent surface keeps contrast on the actual solid pillar header. */
-.today-page .today-pillar .pillar-icon { background: rgb(255 255 255 / 16%); color: inherit; }
+.today-page .today-pillar .pillar-icon { background: var(--pillar-header-icon-background); color: inherit; }
 .today-page .today-pillar .pillar-header h2 { font-size: 1rem; color: inherit; line-height: 1.4; }
 .today-page .today-pillar .today-pillar-status {
   flex: 0 1 auto;

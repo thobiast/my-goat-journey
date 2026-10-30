@@ -4,6 +4,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
     <meta name="theme-color" content="#fffaf0">
+    <script>
+      // Resolve before CSS/modules paint; this HTML is part of the signed offline shell.
+      (() => {
+        const appBase = new URL('%BASE_URL%', location.href).pathname;
+        const storageKey = `my-goat-journey:appearance:${appBase}`;
+        let preference = 'system';
+        try {
+          const stored = localStorage.getItem(storageKey);
+          if (stored === 'light' || stored === 'dark') preference = stored;
+        } catch {}
+        const root = document.documentElement;
+        function applyAppearance() {
+          const dark = preference === 'dark' || (preference === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+          root.dataset.appearancePreference = preference;
+          root.dataset.appearance = dark ? 'dark' : 'light';
+          root.style.colorScheme = dark ? 'dark' : 'light';
+          root.style.backgroundColor = dark ? '#090B0E' : '#fffaf0';
+          document.querySelector('meta[name="theme-color"]').content = dark ? '#090B0E' : '#fffaf0';
+        }
+        function storageChanged(event) {
+          if (event.key === storageKey || event.key === null) {
+            preference = event.newValue === 'light' || event.newValue === 'dark' ? event.newValue : 'system';
+            applyAppearance();
+          }
+        }
+        // Keep the root current until React installs its own storage listener.
+        window.addEventListener('storage', storageChanged);
+        window.__goatAppearanceBootstrap = () => {
+          window.removeEventListener('storage', storageChanged);
+          delete window.__goatAppearanceBootstrap;
+          return root.dataset.appearancePreference;
+        };
+        applyAppearance();
+      })();
+    </script>
     <title>My GOAT Journey</title>
     <link rel="manifest" href="%BASE_URL%site-v1.webmanifest" type="application/manifest+json">
     <link rel="icon" href="%BASE_URL%icons/favicon-v1.ico" sizes="16x16 32x32 48x48" type="image/x-icon">

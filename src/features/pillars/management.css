@@ -1,7 +1,7 @@
-.pillars-management-page { color:#243B33; }
+.pillars-management-page { color:var(--detail-text); }
 .pillars-management-page > header:not(.main-page-header) { background:transparent; padding:0; border-radius:0; margin-bottom:12px; }
 .pillars-management-page > header:not(.main-page-header) h1 { font-family:Georgia,serif; font-size:2rem; margin:0; }
-.management-pillar { margin:16px 0; border:1px solid #DEDED2; border-radius:15px; background:#FFFDF9; --pillar-accent:var(--custom-accent); }
+.management-pillar { margin:16px 0; border:1px solid var(--detail-border); border-radius:15px; background:var(--detail-surface); --pillar-accent:var(--custom-accent); }
 .management-pillar.mind { --pillar-accent:var(--mind-accent); }
 .management-pillar.body { --pillar-accent:var(--body-accent); }
 .management-pillar.nutrition { --pillar-accent:var(--nutrition-accent); }
@@ -9,10 +9,10 @@
 .management-pillar h2 { margin:0; flex:1; min-width:0; }
 .management-pillar-header { display:flex; align-items:start; gap:4px; }
 .management-pillar-header > .management-actions { padding:8px 8px 8px 0; flex:none; }
-.pillar-disclosure { display:flex; align-items:center; gap:10px; width:100%; border:0; background:transparent; color:#243B33; text-align:left; padding:10px 12px; }
+.pillar-disclosure { display:flex; align-items:center; gap:10px; width:100%; border:0; background:transparent; color:var(--detail-text); text-align:left; padding:10px 12px; }
 .pillar-disclosure > span:nth-child(2) { flex:1; min-width:0; overflow-wrap:anywhere; }
 .pillar-disclosure > svg, .pillar-disclosure .pillar-icon { flex:none; }
-.pillar-disclosure small { display:block; font-family:system-ui,sans-serif; font-weight:400; font-size:.875rem; margin-top:3px; color:#58675D; }
+.pillar-disclosure small { display:block; font-family:system-ui,sans-serif; font-weight:400; font-size:.875rem; margin-top:3px; color:var(--detail-secondary); }
 /* Keep enlarged names intact without shrinking the icon or surrounding targets. */
 .management-pillar { container-type:inline-size; }
 @container (max-width:14rem) {
@@ -22,10 +22,10 @@
   .pillar-disclosure > span:nth-child(2) { grid-column:1 / -1; grid-row:2; }
   .pillar-disclosure > svg { grid-column:2; grid-row:1; justify-self:end; }
 }
-.management-habit { border-top:1px solid #DEDED2; padding:12px; display:flex; align-items:start; gap:8px 12px; flex-wrap:wrap; }
+.management-habit { border-top:1px solid var(--detail-border); padding:12px; display:flex; align-items:start; gap:8px 12px; flex-wrap:wrap; }
 .management-habit > div:first-child { flex:1 1 10rem; min-width:0; }
 .management-habit h3 { margin:0; overflow-wrap:anywhere; }
-.management-habit p { margin:4px 0; color:#58675D; overflow-wrap:anywhere; }
+.management-habit p { margin:4px 0; color:var(--detail-secondary); overflow-wrap:anywhere; }
 .management-empty { padding:0 12px; }
 .management-add { padding:0 12px 8px; }
 .habit-row-actions { display:flex; align-items:flex-start; flex-wrap:wrap; gap:4px; }
@@ -34,33 +34,33 @@
 .action-trigger { display:flex; align-items:center; justify-content:center; padding:0; width:44px; height:44px; flex:none; }
 .management-edit { padding:8px 10px; }
 .management-add-button { padding:8px 4px; font-weight:500; }
-.action-trigger:hover, .management-edit:hover, .management-add-button:hover { background:#F0F1E9; }
-.action-trigger:focus-visible, .management-edit:focus-visible, .management-add-button:focus-visible, .pillar-disclosure:focus-visible { outline:3px solid #77502f; outline-offset:-3px; }
-.actions-panel { position:fixed; inset:auto; margin:0; box-sizing:border-box; width:max-content; max-width:calc(100vw - 24px); border:1px solid #C8CEC4; border-radius:12px; background:#FFFDF9; color:#243B33; box-shadow:0 8px 28px #243B3329; padding:8px; overflow:auto; overscroll-behavior:contain; }
+.action-trigger:hover, .management-edit:hover, .management-add-button:hover { background:var(--management-hover); }
+.action-trigger:focus-visible, .management-edit:focus-visible, .management-add-button:focus-visible, .pillar-disclosure:focus-visible { outline:3px solid var(--focus-ring); outline-offset:-3px; }
+.actions-panel { position:fixed; inset:auto; margin:0; box-sizing:border-box; width:max-content; max-width:calc(100vw - 24px); border:1px solid var(--panel-border); border-radius:12px; background:var(--detail-surface); color:var(--detail-text); box-shadow:var(--panel-shadow); padding:8px; overflow:auto; overscroll-behavior:contain; }
 .actions-panel:popover-open, .actions-panel[open] { display:flex; flex-direction:column; gap:4px; }
 .actions-sheet { border-radius:16px; padding:12px; }
-.actions-sheet::backdrop { background:#182A2466; }
+.actions-sheet::backdrop { background:var(--sheet-backdrop); }
 .actions-sheet .actions-context { flex-shrink:0; min-width:0; margin:0 0 4px; padding:0 4px; font-size:1rem; line-height:1.4; font-weight:600; overflow-wrap:anywhere; white-space:pre-wrap; }
 .actions-panel button { min-height:44px; flex-shrink:0; border:0; text-align:left; background:transparent; color:var(--primary); white-space:normal; overflow-wrap:anywhere; }
-.actions-panel button:hover { background:#F0F1E9; }
-.actions-panel button:focus-visible { outline:3px solid #77502f; outline-offset:-3px; }
-.actions-panel .actions-danger { color:#853E43; border-top:1px solid #DEDED2; border-radius:0; margin-top:4px; }
-.actions-panel .actions-close { border-top:1px solid #DEDED2; border-radius:0; margin-top:4px; }
-.pillars-management-page h2:focus { outline:3px solid #77502f; outline-offset:3px; }
-.secondary { background:#FFFDF9; color:var(--primary); }
+.actions-panel button:hover { background:var(--management-hover); }
+.actions-panel button:focus-visible { outline:3px solid var(--focus-ring); outline-offset:-3px; }
+.actions-panel .actions-danger { color:var(--danger); border-top:1px solid var(--detail-border); border-radius:0; margin-top:4px; }
+.actions-panel .actions-close { border-top:1px solid var(--detail-border); border-radius:0; margin-top:4px; }
+.pillars-management-page h2:focus { outline:3px solid var(--focus-ring); outline-offset:3px; }
+.secondary { background:var(--detail-surface); color:var(--primary); }
 /* Context navigation precedes the title without competing with form actions. */
 .quiet-back { display:block; width:fit-content; max-width:100%; margin:0 0 6px; padding:8px 0; min-height:44px; border:0; border-radius:4px; background:transparent; color:var(--primary); text-align:left; font-weight:500; }
 .quiet-back:hover { text-decoration:underline; }
-.quiet-back:focus-visible { outline:3px solid #77502f; outline-offset:3px; }
-.review-goal { font-size:1.125rem; line-height:1.5; margin:10px 0 0; color:#243B33; font-weight:600; }
+.quiet-back:focus-visible { outline:3px solid var(--focus-ring); outline-offset:3px; }
+.review-goal { font-size:1.125rem; line-height:1.5; margin:10px 0 0; color:var(--detail-text); font-weight:600; }
 .review-explanation { margin:16px 0; }
 .review-explanation h2 { font-size:1.125rem; margin:0 0 6px; }
-.review-explanation p { margin:4px 0; color:#58675D; }
-.completion-review .history-row { background:#FFFDF9; border:1px solid #DEDED2; border-radius:12px; margin:10px 0; padding:12px; }
-.completion-review .correction-row { border-color:#BBC9B8; }
+.review-explanation p { margin:4px 0; color:var(--detail-secondary); }
+.completion-review .history-row { background:var(--detail-surface); border:1px solid var(--detail-border); border-radius:12px; margin:10px 0; padding:12px; }
+.completion-review .correction-row { border-color:var(--correction-border); }
 .completion-review .goal-row { display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap; }
 .completion-review .goal-copy { flex:1 1 12rem; }
-.review-supporting, .review-management, .completion-review .history-changes { margin:16px 0; border-top:1px solid #DEDED2; color:#58675D; }
+.review-supporting, .review-management, .completion-review .history-changes { margin:16px 0; border-top:1px solid var(--detail-border); color:var(--detail-secondary); }
 .review-supporting summary, .review-management summary, .completion-review .history-changes summary { color:var(--primary); }
 .review-supporting p { margin:6px 0; }
 .completion-review .habit-management { margin:16px 0; }

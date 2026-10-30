@@ -1,16 +1,39 @@
 .settings-content { display: grid; gap: 16px; min-width: 0; }
-.settings-content .settings-section { margin: 0; padding: 16px; min-width: 0; background: var(--surface); border: 1px solid #d5dfce; border-radius: 15px; }
+.settings-content .settings-section { margin: 0; padding: 16px; min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 15px; }
 .settings-content .settings-section > h2 { margin: 0 0 12px; font-size: 1.3125rem; line-height: 1.35; }
 .settings-content label { margin: 12px 0 8px; }
 .settings-content .checkbox-label { margin: 16px 0 0; }
 .settings-content .checkbox-label input { flex-shrink: 0; }
 .settings-content .settings-help { margin: 8px 0; color: var(--muted); font-size: .9375rem; line-height: 1.5; }
 .settings-content .settings-help + button { margin-top: 8px; }
-.settings-content .settings-restore { margin-top: 20px; padding-top: 16px; border-top: 1px solid #d5dfce; }
+.settings-content .settings-restore { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
 .settings-content input[type=file] { min-width: 0; max-width: 100%; }
-.settings-content .confirmation { background: transparent; border: 0; border-top: 1px solid #d5dfce; border-radius: 0; padding: 16px 0 0; margin: 20px 0 0; }
+.settings-content .confirmation { background: transparent; border: 0; border-top: 1px solid var(--border); border-radius: 0; padding: 16px 0 0; margin: 20px 0 0; }
 .settings-content .confirmation p { margin: 8px 0; }
 .settings-content .action-row { margin-bottom: 0; }
 .settings-content .delete-section { margin-top: 8px; }
 .settings-content .destructive { background: transparent; }
 .settings-content > [role=alert], .settings-content > [role=status] { margin: 0; }
+
+/* Native radios retain grouping, arrow-key behavior and the checked announcement. */
+.settings-content .appearance-preference { --appearance-track: #f0f0e9; --appearance-selected-surface: var(--surface); --appearance-selected-text: var(--text-primary); width: 100%; max-width: 24rem; min-width: 0; margin: 16px 0; container-type: inline-size; }
+html[data-appearance=dark] .appearance-preference { --appearance-track: var(--surface-secondary); --appearance-selected-surface: #282d32; --appearance-selected-text: var(--primary); }
+
+.appearance-preference > legend { margin-bottom: 8px; }
+.appearance-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; padding: 1px; border: 1px solid var(--border); border-radius: 12px; background: var(--appearance-track); }
+.settings-content .appearance-options > label { min-width: 0; margin: 0; cursor: pointer; }
+.appearance-options input.visually-hidden { min-width: 1px; min-height: 1px; }
+.appearance-options input + span { display: flex; justify-content: center; align-items: center; min-height: 44px; height: 100%; min-width: 0; padding: 8px 6px; border: 0; border-radius: 8px; color: var(--muted); text-align: center; overflow-wrap: anywhere; font-size: .875rem; font-weight: 550; line-height: 1.4; }
+.appearance-options input:checked + span { background: var(--appearance-selected-surface); color: var(--appearance-selected-text); border: 2px solid var(--muted); padding: 6px 4px; }
+.appearance-choice { display: inline-flex; align-items: center; gap: 3px; min-width: 0; }
+.appearance-icon { display: block; width: 1.125em; height: 1.125em; flex-shrink: 0; }
+
+.appearance-options input:focus-visible + span { position: relative; outline: 3px solid var(--focus-ring); outline-offset: 3px; z-index: 1; }
+.appearance-options input:disabled + span { opacity: .65; cursor: not-allowed; }
+@container (max-width: 16em) { .appearance-options { grid-template-columns: minmax(0, 1fr); } }
+
+/* Keep checked state inside the segment and keyboard focus outside it. */
+@media (forced-colors: active) {
+  .appearance-options input:checked + span { border: 2px solid Highlight; padding: 6px 4px; }
+  .appearance-options input:focus-visible + span { outline: 3px dashed Highlight; outline-offset: 3px; }
+}

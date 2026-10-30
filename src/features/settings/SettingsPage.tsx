@@ -5,9 +5,44 @@ import { deviceClock, localDate } from '../../domain/calendar';
 import type { Dataset, Settings } from '../../domain/types';
 import type { Copy } from '../../i18n/copy';
 import './settings.css';
+import { setAppearance, useAppearance, type AppearancePreference } from '../../app/appearance';
 
 type StatusMessage = 'downloadStarted' | 'backupRestored';
 type ErrorMessage = 'fileTooLarge' | 'invalidBackup' | 'backupTooLarge' | 'saveError';
+
+// Small, locally drawn symbols follow the app's decorative currentColor SVG pattern.
+function AppearanceIcon({ value }: { value: AppearancePreference }) {
+  return (
+    <svg
+      className="appearance-icon"
+      data-appearance-icon={value}
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {value === 'system' ? (
+        <>
+          <rect x="3" y="4" width="18" height="13" rx="2" />
+          <path d="M12 17v4M8 21h8" />
+        </>
+      ) : value === 'light' ? (
+        <>
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5" />
+        </>
+      ) : (
+        <path d="M20.5 14.2A8.7 8.7 0 0 1 9.8 3.5 8.7 8.7 0 1 0 20.5 14.2Z" />
+      )}
+    </svg>
+  );
+}
 
 interface SettingsPageProps {
   data: Dataset;
@@ -42,6 +77,7 @@ export function SettingsPage({
   applyUpdate,
   updateBlocked = false,
 }: SettingsPageProps) {
+  const appearance = useAppearance();
   const [status, setStatus] = useState<StatusMessage>();
   const [error, setError] = useState<ErrorMessage>();
   const [exporting, setExporting] = useState(false);
@@ -166,6 +202,29 @@ export function SettingsPage({
           <option value="en">English</option>
           <option value="pt">Português (Brasil)</option>
         </select>
+        <fieldset className="appearance-preference" disabled={busy}>
+          <legend>{copy.appearance}</legend>
+          <div className="appearance-options">
+            {(['system', 'light', 'dark'] as const).map((value: AppearancePreference) => (
+              <label key={value}>
+                <input
+                  className="visually-hidden"
+                  type="radio"
+                  name="appearance"
+                  value={value}
+                  checked={appearance === value}
+                  onChange={() => setAppearance(value)}
+                />
+                <span className="appearance-option">
+                  <span className="appearance-choice">
+                    <AppearanceIcon value={value} />
+                    <span className="appearance-label">{copy[`appearance_${value}`]}</span>
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <label className="checkbox-label">
           <input
             type="checkbox"

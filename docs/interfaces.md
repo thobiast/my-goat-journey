@@ -380,7 +380,7 @@ and reset require `expectedRevision`.
 
 `Settings` contains `language` (`en` or `pt`), `reducedMotion` and optional
 `progressInterval`. Fresh/reset defaults are English, reduced motion false and
-no stored interval preference. There are no reminder or theme settings.
+no stored interval preference. There are no reminder or appearance fields in the diary.
 
 - `Repository.setSettings` preserves omitted fields but rejects explicitly present
   invalid values, including `language: undefined` and `reducedMotion: undefined`.
@@ -406,6 +406,40 @@ no stored interval preference. There are no reminder or theme settings.
 - Backup parsing retains valid choices, normalizes an invalid present interval
   to `7d`, and leaves an absent preference absent. Replacement restores the
   candidate's preference; full reset clears it.
+
+### Device appearance
+
+Settings exposes native, mutually exclusive **System / Light / Dark** radios
+(**Sistema / Claro / Escuro**) near language. Selection applies immediately with
+no Save action, keeps focus and respects the existing busy/inert controls.
+System is the default for absent/invalid values and follows live OS changes;
+explicit choices override them. The app-only dark palette is Graphite, through
+shared semantic CSS tokens; light styling and application geometry are retained.
+The selected segment has a persistent internal border with at least 3:1 contrast
+against both adjacent surfaces, distinct from the external keyboard-focus outline.
+Forced colors retains a system-color selection border and dashed focus outline.
+
+Appearance belongs to browser-local presentation, under
+`my-goat-journey:appearance:<appBase>` in localStorage, not `Dataset.settings`.
+It never calls Repository, changes a revision, writes diary facts, replaces a
+dataset or invalidates drafts. Same-origin storage events synchronize this key
+between app windows without a dataset broadcast. Import, restore and full diary
+reset leave it alone. Storage read failures default to System; failed writes keep
+the session selection. OS/storage listeners are detached when the final UI
+subscriber unmounts.
+
+An app-head inline initializer resolves the preference before CSS/module paint,
+sets the resolved appearance, native color scheme and document theme color, and
+hands the latest root preference to the React session without a second storage
+read. A temporary storage listener keeps this root snapshot current from head
+execution until the first UI subscription installs its runtime listener; adoption
+then removes the temporary listener, including across a delayed module handoff.
+Its base URL resolves correctly in development's relative HTML and compiled builds.
+The initializer is included in signed HTML and offline shell integrity; no new
+remote resource, CSP relaxation or worker protocol is needed. Manifest identity
+and its static launch fallback colors remain unchanged. Landing has no appearance
+control or app-theme initialization.
+
 
 ## Backup and replacement restore
 
@@ -563,7 +597,8 @@ PWA modules; only the separate landing language preference persists.
 - Only the focused route heading receives `data-route-heading`;
   `data-keyboard-focus` marks keyboard entry and is removed by pointer/touch.
   Scoped CSS suppresses the static-title ring only for non-keyboard entry and
-  shows the brown **3px** outline for keyboard entry.
+  shows the semantic **3px** focus outline for keyboard entry (brown in Light,
+  pale green in Graphite).
 - Interactive controls have visible focus, modals contain focus and return paths
   restore origin focus. Do not globally remove outlines, blur headings or use
   timing workarounds.
@@ -620,7 +655,7 @@ PWA modules; only the separate landing language preference persists.
   surfaces derive from the existing neutral accent without changing saved facts.
   Containers are 36px (Today/management) or 40px (Progress), with 21px/22px
   decorative glyphs and 11px corners, independent of completion state.
-  Colored Today group headers retain their solid identity backgrounds and light
+  In Light, colored Today group headers retain their solid identity backgrounds and light
   text; their icons use a lighter translucent square, not the neutral-surface pair.
   Names/counts wrap when needed, and enlarged narrow management names occupy a
   full-width row below the icon/controls. Neutral habit/card surfaces, completion
@@ -642,7 +677,7 @@ PWA modules; only the separate landing language preference persists.
   assigned date is its accessible description. Streaks use a compact secondary
   row; the actual next-table bonus has a separate singular/plural localized line
   (**Next bonus: +30 XP in 3 more consecutive completions.**, for example).
-  Pending and completed habits share the same light neutral surface; completion
+  Pending and completed habits share the theme's neutral surface; completion
   remains visible in the native green checked control, without title strikethrough
   or opacity reduction. The 44px target extends into the whitespace beside the
   first metadata line, with reserved text clearance, so it does not inflate the

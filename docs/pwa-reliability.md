@@ -491,5 +491,5 @@ does not establish real-device behavior.
       errors as device evidence.
 
 Hosting/TLS configuration, DNS/firewall changes and notification permission/push
-testing are separate from this checklist. Accounts, sync, telemetry, dark mode,
+testing are separate from this checklist. Accounts, sync, telemetry,
 reminders, notifications and the catalog/avatar mapping remain out of scope.

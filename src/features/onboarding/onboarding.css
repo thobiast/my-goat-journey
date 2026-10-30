@@ -10,8 +10,8 @@ main.setup { max-width: 640px; padding-bottom: max(32px, env(safe-area-inset-bot
 .setup .onboarding-navigation p { margin: 0; color: var(--page-intro-color); font-size: .875rem; }
 .setup .onboarding-back { background: transparent; color: var(--primary); border-color: transparent; padding: 8px 0; }
 .setup .onboarding-progress { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); list-style: none; gap: 6px; padding: 0; margin: 0 0 20px; }
-.setup .onboarding-progress li { height: 4px; border-radius: 2px; background: #d5dfce; }
-.setup .onboarding-progress li[data-passed=true] { background: #7b9d88; }
+.setup .onboarding-progress li { height: 4px; border-radius: 2px; background: var(--border); }
+.setup .onboarding-progress li[data-passed=true] { background: var(--setup-progress-passed); }
 .setup .onboarding-progress li[aria-current=step] { background: var(--primary); }
 .setup .onboarding-pillar-title { display: flex; align-items: center; gap: 10px; }
 .setup .onboarding-pillar-icon { display: inline-flex; align-items: center; color: var(--custom-accent); flex-shrink: 0; }
@@ -21,7 +21,7 @@ main.setup { max-width: 640px; padding-bottom: max(32px, env(safe-area-inset-bot
 .setup .onboarding-pillar-icon.hygiene { color: var(--hygiene-accent); }
 .setup .onboarding-form { margin-top: 0; }
 .setup .onboarding-form #goal-help { color: var(--page-intro-color); font-size: .875rem; }
-.setup .field-error { color: #742c38; margin: 8px 0; }
+.setup .field-error { color: var(--error); margin: 8px 0; }
 .setup .onboarding-status { color: var(--page-intro-color); font-size: .875rem; margin: 8px 0 0; }
 .setup .onboarding-status:empty { margin: 0; }
 .setup .onboarding-review-row { margin: 0 0 10px; padding: 12px 14px; border-radius: 10px; }

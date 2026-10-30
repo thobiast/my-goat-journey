@@ -1,4 +1,8 @@
 {
+  "appearance": "Appearance",
+  "appearance_system": "System",
+  "appearance_light": "Light",
+  "appearance_dark": "Dark",
   "onboardingExample": "For example: Read 20 pages of a book.",
   "onboardingFirstDay": "Today is a bonus opportunity. Skipping it won’t break your streak.",
   "onboardingProgress": "Onboarding steps",

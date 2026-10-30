@@ -60,6 +60,7 @@ import {
   routeHeading,
 } from './routePolicy';
 import './styles.css';
+import { useAppearance } from './appearance';
 import { DiscardDialog } from './DiscardDialog';
 import './page-heading.css';
 import { usePageHeadingFocus } from './usePageHeadingFocus';
@@ -77,6 +78,7 @@ type SnapshotAcceptance =
     }
   | { kind: 'confirmed-replacement' };
 export function App() {
+  useAppearance();
   const [data, setData] = useState<Dataset>();
   const committed = useRef<Dataset | undefined>(undefined);
   const [draft, setDraft] = useState<OnboardingDraft>(emptyDraft);

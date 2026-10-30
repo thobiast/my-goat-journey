@@ -606,7 +606,7 @@ Only the XP rules expressly listed in this specification contribute to XP. Other
 | Journey | Display general level, XP, mountain map and daily/overall streak. Avatar/catalog unlock presentation remains deferred. |
 | Progress | Show consistency calendars, habit/pillar history, schedules and streaks, with filters and dated review/correction controls. Review supports existing edit/lifecycle actions and effective-date feedback. Calendars show history through yesterday; streaks include today. The achievement/cosmetic catalog remains deferred. |
 | Habit editor | Create or edit one goal-text field, pillar and selected weekdays/Every day; never request a separate habit name. Explain prospective goal/schedule and move effective dates. No reminder setting is implemented. |
-| Settings | Implemented language/motion preference, backup export/validated replacement-only restore, separate confirmed full-data deletion and optional update check. Reminders remain deferred; no reference-timezone or dark-mode setting is present. |
+| Settings | Language/motion preferences, device-only System/Light/Dark appearance, backup export/validated replacement-only restore, separate confirmed full-data deletion and optional update check. Reminders and reference-timezone settings remain deferred. |
 
 The current presentation uses the Field Notes style, supplied branding and five-destination navigation; the supplied logos and derived icons are included in the project’s Apache-2.0 licensing scope to the extent of available rights (see [branding provenance](branding-pwa.md)). Use clear, accessible language suitable for a broad audience, without assuming a school setting or a particular age. Examples should reflect varied everyday routines and remain non-prescriptive. Feedback must be supportive and non-punitive.
 
@@ -955,7 +955,9 @@ does not authorize implementation.
 - Reminders/notifications and a separate delivery API are future work. Hosting,
   TLS, endpoint protection, delivery scheduling and timezone refresh need design and
   operational verification; exact-minute or completion-based suppression is not promised.
-- Accounts, synchronization, analytics and dark mode are not implemented.
+- Accounts, synchronization and analytics are not implemented. App-only appearance
+  supports System, Light and Graphite Dark as a device presentation preference,
+  separate from diary facts and backups; see [Interfaces](interfaces.md#device-appearance).
 - The name has no claimed availability/trademark review. Project-owned code,
   documentation and original assets (including supplied logos and derived icons)
   use [Apache-2.0](../LICENSE), to the extent of available rights. Preserve

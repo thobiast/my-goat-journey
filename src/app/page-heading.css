@@ -4,14 +4,14 @@
   --page-title-size: 2rem;
   --page-title-weight: 700;
   --page-title-line-height: 1.2;
-  --page-title-color: #152e24;
+  --page-title-color: var(--text-primary);
   --page-heading-space-above: 0px;
   --page-heading-intro-gap: 6px;
   --page-heading-content-gap: 16px;
   --page-intro-size: 1rem;
   --page-intro-weight: 400;
   --page-intro-line-height: 1.5;
-  --page-intro-color: #58675d;
+  --page-intro-color: var(--detail-secondary);
 }
 main > .main-page-header {
   min-width: 0;
@@ -52,6 +52,6 @@ main > .main-page-header {
    programmatic focus can be :focus-visible even without keyboard input. */
 main h1[data-route-heading][tabindex="-1"]:focus { outline: none; }
 main h1[data-route-heading][data-keyboard-focus][tabindex="-1"]:focus {
-  outline: 3px solid #77502f;
+  outline: 3px solid var(--focus-ring);
   outline-offset: 3px;
 }

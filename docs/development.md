@@ -674,6 +674,46 @@ Preserve any evidence needed for comparison before reruns, inspect desktop/mobil
 captures in both languages, and keep raw logs/traces out of commits. Browser emulation is not
 physical-iPhone, Safari, hosted CI or GitHub Pages validation.
 
+## Focused appearance verification
+
+Appearance is an app/base-scoped browser preference, not a diary setting; see
+[device appearance](interfaces.md#device-appearance). Use isolated fictional diaries
+and retain captures through `testInfo.outputPath()`, never maintained screenshots.
+
+```sh
+sh scripts/containers.sh tool npm run test -- tests/ui/appearance.test.ts
+sh scripts/containers.sh e2e e2e/appearance.spec.ts
+```
+
+The ordinary browser file uses the development module boundary to verify early
+initialization; its other cases cover native radios, EN/PT, keyboard/focus, live OS
+changes, overrides/reload, blocked storage, literal dirty drafts, exact diary and
+revision preservation, backup/reset isolation, protected Settings commits and
+mobile/desktop/enlarged layouts.
+
+`playwright.appearance-pwa.config.ts` is a separate prepared compiled gate. Prepare
+task-owned non-root nginx B/C fixtures on the project network at port 8080 named
+`my-goat-journey-appearance-runtime` and `my-goat-journey-appearance-next`, with the
+same configured prefix. Build B from current sources through shared assembly;
+build C from a disposable identical source copy with one harmless HTML comment
+added **before** signing. All non-HTML signed file names/bytes must be identical,
+and the HTML hashes/worker versions must differ. Do not modify signed output,
+replace normal services, or use force-activation hooks.
+
+```sh
+sh scripts/containers.sh e2e --config playwright.appearance-pwa.config.ts
+```
+
+The gate uses its own ephemeral loopback proxy and fresh browser contexts. It
+checks pre-module/first-paint resolution, signed cached/fetched bytes, explicit
+overrides, fresh offline documents, dirty native resume deferral, Keep editing,
+explicit discard, later clean guarded B-to-C adoption and retained dark offline
+reopening. It does not run the full worker failure matrix or certify Safari,
+assistive technology, physical devices, OS splash colors or storage retention.
+Serialize toolchain commands with the existing repository lock using
+`flock --close`; preserve normal `dist/`, services, dependency volumes and earlier
+evidence by using disposable source/build contexts.
+
 ## Changed-scope verification and cleanup
 
 Use disposable contexts and serialize shared-volume/source/image-changing gates. Preserve actual result logs privately; a timeout/interruption, skipped test, local baseline run or mock is not a new production pass. Check:

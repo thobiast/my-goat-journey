@@ -231,6 +231,8 @@ test('Portuguese enlarged sections and keyboard focus fit narrow and short viewp
   await language.focus();
   await expect(language).toBeFocused();
   await language.press('Tab');
+  await expect(page.getByRole('radio', { name: 'Sistema', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
   await expect(
     page.getByRole('checkbox', { name: 'Reduzir movimento', exact: true }),
   ).toBeFocused();

@@ -1,6 +1,6 @@
-/* Field Notes history surfaces are scoped; Today and Journey retain their approved tokens. */
-.progress-page, .progress-day-page { --progress-card:#fffdf9; --progress-text:#243b33; --progress-secondary:#58675d; --progress-border:#deded2; --completed:#2d6b50; --partial:#c39a4e; --incomplete:#a5524d; --unscheduled:#e8e7de; color:var(--progress-text); }
-html:has(.progress-page), html:has(.progress-day-page) { background:#faf7ef; }
+/* Calendar states and history consume the root semantic palette. */
+.progress-page, .progress-day-page { color:var(--progress-text); }
+html:has(.progress-page), html:has(.progress-day-page), body:has(.progress-page), body:has(.progress-day-page) { background:var(--progress-page-background); }
 .progress-day-page > header { padding:0; background:transparent; margin-bottom:20px; }
 .progress-day-page > header h1 { font-family:Georgia, serif; color:var(--progress-text); font-weight:500; font-size:1.875rem; margin:0; }
 .progress-xp { margin:0 0 12px; }
@@ -10,17 +10,17 @@ html:has(.progress-page), html:has(.progress-day-page) { background:#faf7ef; }
 .progress-xp-fraction { font-size:.875rem; color:var(--progress-secondary); overflow-wrap:anywhere; }
 .progress-xp-next { display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-inline-start:auto; min-width:0; max-width:100%; }
 .progress-xp-rocket { font-size:28px; line-height:1; flex-shrink:0; }
-.progress-xp progress { display:block; appearance:none; width:100%; height:6px; border:0; border-radius:3px; overflow:hidden; background:var(--unscheduled); color:var(--completed); }
-.progress-xp progress::-webkit-progress-bar { background:var(--unscheduled); border-radius:3px; }
+.progress-xp progress { display:block; appearance:none; width:100%; height:6px; border:0; border-radius:3px; overflow:hidden; background:var(--progress-track); color:var(--completed); }
+.progress-xp progress::-webkit-progress-bar { background:var(--progress-track); border-radius:3px; }
 .progress-xp progress::-webkit-progress-value { background:var(--completed); border-radius:3px; }
 .progress-xp progress::-moz-progress-bar { background:var(--completed); border-radius:3px; }
 .progress-xp-remaining { margin:6px 0 0; font-size:.8125rem; color:var(--progress-secondary); }
 .progress-tabs { display:flex; gap:4px; border-bottom:1px solid var(--progress-border); margin:0 0 8px; }
 .progress-tabs button { border:0; border-radius:8px 8px 0 0; color:var(--progress-secondary); background:transparent; flex:1; padding:12px; font-weight:600; }
-.progress-tabs button[aria-selected=true] { color:var(--progress-text); background:#e7eee5; box-shadow:inset 0 -3px var(--completed); }
+.progress-tabs button[aria-selected=true] { color:var(--progress-text); background:var(--progress-selected); box-shadow:inset 0 -3px var(--completed); }
 .interval-selector { display:flex; flex-wrap:wrap; gap:4px; }
 .interval-selector button { flex:1 0 auto; min-width:44px; padding:8px 4px; background:var(--progress-card); color:var(--progress-text); border-color:var(--progress-border); }
-.interval-selector button[aria-pressed=true] { background:var(--completed); border-color:var(--completed); color:white; }
+.interval-selector button[aria-pressed=true] { background:var(--completed); border-color:var(--completed); color:var(--on-primary); }
 .period-navigation, .day-navigation { display:grid; grid-template-columns:44px minmax(0,1fr) 44px; align-items:center; gap:8px; margin:12px 0 0; }
 .period-navigation { margin-top:8px; }
 .period-navigation p, .day-navigation p { margin:0; text-align:center; font-size:.875rem; }
@@ -39,7 +39,7 @@ html:has(.progress-page), html:has(.progress-day-page) { background:#faf7ef; }
 .filter-summary { margin:2px 0; font-size:.875rem; color:var(--progress-secondary); }
 .calendar-legend { display:flex; flex-wrap:wrap; gap:4px 12px; list-style:none; padding:0; margin:4px 0; font-size:.8125rem; }
 .calendar-legend li { display:flex; align-items:center; gap:6px; }
-.legend-swatch { display:inline-block; width:14px; height:14px; border-radius:4px; flex-shrink:0; border:1px solid #58675d; }
+.legend-swatch { display:inline-block; width:14px; height:14px; border-radius:4px; flex-shrink:0; border:1px solid var(--detail-secondary); }
 .state-completed { background:var(--completed); }
 .state-partial { background:var(--partial); }
 .state-incomplete { background:var(--incomplete); }
@@ -50,7 +50,7 @@ html:has(.progress-page), html:has(.progress-day-page) { background:#faf7ef; }
 .consistency-card.body { --pillar-accent:var(--body-accent); }
 .consistency-card.nutrition { --pillar-accent:var(--nutrition-accent); }
 .consistency-card.hygiene { --pillar-accent:var(--hygiene-accent); }
-.aggregate-card { background:#f0f5ec; --pillar-accent:var(--completed); }
+.aggregate-card { background:var(--progress-aggregate); --pillar-accent:var(--completed); }
 .consistency-heading { display:grid; grid-template-columns:40px minmax(0,1fr); gap:10px; align-items:start; margin-bottom:8px; }
 .consistency-heading .pillar-icon { width:40px; height:40px; }
 .consistency-heading .pillar-icon svg { width:22px; height:22px; }
@@ -72,22 +72,23 @@ html:has(.progress-page), html:has(.progress-day-page) { background:#faf7ef; }
 .weekday-narrow { display:none; }
 .calendar-day, .calendar-before, .calendar-blank { display:grid; place-items:center; border-radius:4px; min-width:0; min-height:0; width:100%; padding:0; border:0; height:max(44px,1.8rem); font-size:.8125rem; line-height:1.2; }
 .calendar-blank { background:transparent; }
-.calendar-day { color:white; }
-.calendar-day.state-partial, .calendar-day.state-unscheduled { color:var(--progress-text); }
-.calendar-day.state-incomplete { color:#fff; }
-.calendar-day:focus-visible { outline:3px solid #243b33; outline-offset:2px; z-index:1; }
-.calendar-day:hover { box-shadow:inset 0 0 0 2px #243b33; }
+.calendar-day { color:var(--calendar-on-completed); }
+.calendar-day.state-partial { color:var(--calendar-on-partial); }
+.calendar-day.state-unscheduled { color:var(--calendar-on-unscheduled); }
+.calendar-day.state-incomplete { color:var(--calendar-on-incomplete); }
+.calendar-day:focus-visible { outline:3px solid var(--calendar-focus); outline-offset:2px; z-index:1; }
+.calendar-day:hover { box-shadow:inset 0 0 0 2px var(--calendar-focus); }
 .day-number { white-space:nowrap; overflow-wrap:normal; }
 .compact-calendar .calendar-day, .compact-calendar .calendar-before, .compact-calendar .calendar-blank { height:max(24px,1.5rem); }
 .week-strip .calendar-day, .week-strip .calendar-before, .week-strip .calendar-blank { height:max(64px,3rem); }
 .week-strip small { display:block; font-size:.65rem; margin-bottom:6px; }
-.calendar-before, .before-tracking-swatch { background:repeating-linear-gradient(135deg,#f3f1eb 0,#f3f1eb 5px,#c7cec3 5px,#c7cec3 7px); color:#465449; }
+.calendar-before, .before-tracking-swatch { background:repeating-linear-gradient(135deg,var(--calendar-hatch-background) 0,var(--calendar-hatch-background) 5px,var(--calendar-hatch-line) 5px,var(--calendar-hatch-line) 7px); color:var(--calendar-before-text); }
 .calendar-before { cursor:default; }
 .before-tracking-swatch { width:18px; height:18px; border-radius:3px; flex-shrink:0; }
 .calendar-context { display:flex; align-items:center; gap:6px; font-size:.75rem; color:var(--progress-secondary); margin:0 0 12px; }
 @container (max-width:18em) { .weekday-short { display:none; } .weekday-narrow { display:inline; } }
 .consistency-summary { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:10px 12px; border-top:1px solid var(--progress-border); padding-top:12px; }
-.period-donut { width:4rem; height:4rem; border-radius:50%; background:conic-gradient(var(--completed) var(--percent),var(--unscheduled) 0); display:grid; place-items:center; flex-shrink:0; position:relative; }
+.period-donut { width:4rem; height:4rem; border-radius:50%; background:conic-gradient(var(--completed) var(--percent),var(--progress-track) 0); display:grid; place-items:center; flex-shrink:0; position:relative; }
 .period-donut::before { content:""; position:absolute; inset:.5rem; border-radius:50%; background:var(--progress-card); }
 .period-percent { position:relative; font-size:.875rem; color:var(--progress-text); }
 .period-fraction { margin:0; font-size:.875rem; }
@@ -106,10 +107,10 @@ html:has(.progress-page), html:has(.progress-day-page) { background:#faf7ef; }
 .day-state h2 { font-size:1.25rem; margin:0; }
 .day-state h2 svg, .historical-state svg { flex-shrink:0; }
 .day-state p { margin-bottom:0; }
-.day-state.state-completed { background:#e7f1e9; color:#243b33; }
-.day-state.state-partial { background:#f6eddb; color:#243b33; }
-.day-state.state-incomplete { background:#f7e9e6; color:#243b33; }
-.day-state.state-unscheduled { background:#efefe7; color:#243b33; }
+.day-state.state-completed { background:var(--day-completed); color:var(--detail-text); }
+.day-state.state-partial { background:var(--day-partial); color:var(--detail-text); }
+.day-state.state-incomplete { background:var(--day-incomplete); color:var(--detail-text); }
+.day-state.state-unscheduled { background:var(--day-unscheduled); color:var(--detail-text); }
 .historical-habit { border-top:1px solid var(--progress-border); padding:16px 0; }
 .historical-habit h3 { color:var(--progress-text); }
 .historical-habit p { color:var(--progress-secondary); }

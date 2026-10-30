@@ -1,4 +1,4 @@
-.update-notice { margin: 0 0 1rem; padding: .75rem; border: 1px solid var(--border, #d6dace); border-radius: .5rem; background: #f6f8f2; }
+.update-notice { margin: 0 0 1rem; padding: .75rem; border: 1px solid var(--update-border); border-radius: .5rem; background: var(--update-background); }
 .update-notice p { margin: 0 0 .5rem; }
 .update-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .update-actions button { min-height: 44px; max-width: 100%; }
